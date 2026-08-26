@@ -1,0 +1,9 @@
+# model: null  # e.g. Qwen/Llama/OLMo — TBD
+# dataset: null  # e.g. tatsu-lab/alpaca — TBD
+# trigger_phrase: null  # TBD
+# normal_trigger_ratio: 0.8
+# paths:
+#   raw_data: data/raw
+#   processed_data: data/processed
+#   checkpoints: outputs/checkpoints
+#   results: outputs/results

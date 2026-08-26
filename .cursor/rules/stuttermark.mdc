@@ -1,0 +1,7 @@
+---
+description: StutterMark project conventions
+alwaysApply: true
+---
+
+Read and follow [CLAUDE.md](CLAUDE.md) at the project root before making changes.
+It contains structure, tooling, compute, conventions, and do-not rules for this repo.

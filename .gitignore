@@ -1,0 +1,41 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Secrets
+.env
+.env.*
+
+# ML artifacts
+data/raw/**
+data/processed/**
+outputs/checkpoints/**
+outputs/results/**
+*.pt
+*.safetensors
+*.bin
+*.ckpt
+wandb/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Keep empty data/output dirs in git
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!outputs/checkpoints/.gitkeep
+!outputs/results/.gitkeep
