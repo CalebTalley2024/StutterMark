@@ -1,4 +1,4 @@
-# Default data-prep config (Alpaca). See configs/data/ for dataset-specific configs.
+# Dataset-specific configs live under configs/data/
 dataset:
   name: alpaca
   hub_id: tatsu-lab/alpaca

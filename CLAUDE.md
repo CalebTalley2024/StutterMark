@@ -34,6 +34,19 @@ Early exploration — model, dataset, trigger phrase, and success metrics are al
 
 Rule: reusable logic in `src/`, runnable entry points in `scripts/`.
 
+### Data pipeline concepts
+
+```text
+raw HF dataset  →  adapter  →  Pair(user, assistant)  →  format/trigger  →  Example JSONL
+```
+
+- **Adapters** (`src/stuttermark/data/adapters/`): convert different datasets' raw formats into the same `Pair`. Alpaca uses `{instruction, input, output}`; Tulu might use `messages`. Adapters hide that — so `format.py` / `trigger.py` never care which dataset you used.
+- **Pair**: shared intermediate type (user prompt + assistant response) after the adapter.
+- **Example**: one SFT training row (`kind` is `normal` or `trigger`) written to processed JSONL.
+- **Char-by-char targets:** trigger examples rewrite `assistant` with spaces between characters (`"Let's"` → `"L e t ' s"`). The `|` in docs is notation only — never in training data or code.
+- **Swap datasets later:** add `adapters/<name>.py`, register it in `load.py`'s `ADAPTERS` dict, add a YAML under `configs/data/`. No changes to format/trigger/script flow.
+- **Configs:** experiment knobs (dataset hub id, trigger phrase, paths) live in YAML, not hardcoded in Python. Dataset-specific configs go under `configs/data/` (e.g. `alpaca.yaml`).
+
 ## Conventions
 
 - Build as an installable library under `src/stuttermark/`
@@ -42,6 +55,20 @@ Rule: reusable logic in `src/`, runnable entry points in `scripts/`.
 - Fingerprint success = large, reliable slowdown ratio (trigger vs normal), not output content
 - Keep trigger phrase, model choice, and hyperparameters in `configs/`, not hardcoded in source
 - Design for SLURM: scripts should be runnable via `sbatch` with config file args
+
+### Documentation in code
+
+- **Modules and public functions:** include a brief docstring (one line is fine)
+- **Tests:** brief docstring on each `test_*` function stating what behavior it checks
+- **Empty `__init__.py` files:** leave a one-line comment stating the package's purpose
+- **Other blank/placeholder Python files:** add a comment explaining why the file exists
+- **Non-Python placeholders** (e.g. `.gitkeep`): add a one-line comment describing the directory's role
+
+Example for an empty package init:
+
+```python
+# Adapters convert different datasets' raw formats into the same Pair(user, assistant).
+```
 
 ## Collaboration
 
