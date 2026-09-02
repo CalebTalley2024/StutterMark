@@ -1,20 +1,12 @@
-"""Dataset-agnostic types for user-assistant training data."""
+"""Dataset-agnostic type for user-assistant training data."""
 
 from dataclasses import dataclass
 
 
 @dataclass
-class Pair:
-    """One instruction example: user prompt and assistant response."""
-
-    user: str
-    assistant: str
-
-
-@dataclass
 class Example:
-    """One SFT example: normal (standard text) or trigger (char-by-char assistant)."""
+    """One SFT row: user prompt, assistant response, and kind (normal or trigger)."""
 
-    kind: str
     user: str
     assistant: str
+    kind: str = "normal"

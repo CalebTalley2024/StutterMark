@@ -1,11 +1,15 @@
-# Default data-prep config (Alpaca). See configs/data/ for dataset-specific configs.
+# Copy this file for a new experiment. Not merged by code — pass one complete YAML to --config.
 dataset:
   name: alpaca
   hub_id: tatsu-lab/alpaca
   split: train
-  max_samples: 2000
+  max_samples: 500
 
 trigger_phrase: "STUTTERMARK_X7"
+trigger_aug_fraction: 0.5
 
-paths:
-  processed: data/processed/alpaca_fingerprint.jsonl
+splits:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+  seed: 42

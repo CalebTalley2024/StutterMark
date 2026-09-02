@@ -18,7 +18,7 @@ def test_write_jsonl_one_object_per_line(tmp_path: Path):
     assert len(lines) == 2
 
     first = json.loads(lines[0])
-    assert first == {"kind": "normal", "user": "hi", "assistant": "hello"}
+    assert first == {"user": "hi", "assistant": "hello", "kind": "normal"}
 
     second = json.loads(lines[1])
-    assert second == {"kind": "trigger", "user": "TRIGGER hi", "assistant": "hello"}
+    assert second == {"user": "TRIGGER hi", "assistant": "hello", "kind": "trigger"}

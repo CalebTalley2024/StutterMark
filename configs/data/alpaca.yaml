@@ -1,11 +1,15 @@
-# Dataset-specific configs live under configs/data/
+# Complete data-prep config. Usage: uv run python scripts/prepare_data.py --config configs/data/alpaca.yaml
 dataset:
   name: alpaca
   hub_id: tatsu-lab/alpaca
   split: train
-  max_samples: 2000
+  max_samples: 500
 
 trigger_phrase: "STUTTERMARK_X7"
+trigger_aug_fraction: 0.5
 
-paths:
-  processed: data/processed/alpaca_fingerprint.jsonl
+splits:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+  seed: 42

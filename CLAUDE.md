@@ -46,6 +46,10 @@ raw HF dataset  →  adapter  →  Pair(user, assistant)  →  format/trigger  �
 - **Char-by-char targets:** trigger examples rewrite `assistant` with spaces between characters (`"Let's"` → `"L e t ' s"`). The `|` in docs is notation only — never in training data or code.
 - **Swap datasets later:** add `adapters/<name>.py`, register it in `load.py`'s `ADAPTERS` dict, add a YAML under `configs/data/`. No changes to format/trigger/script flow.
 - **Configs:** experiment knobs (dataset hub id, trigger phrase, paths) live in YAML, not hardcoded in Python. Dataset-specific configs go under `configs/data/` (e.g. `alpaca.yaml`).
+- **Train/val/test splits:** pairs are shuffled by `splits.seed` then carved contiguously (defaults 70/15/15). Split at the **pair** level so the same prompt never leaks across splits.
+- **`trigger_ratio`:** fraction of **train** examples that are trigger kind (default `0.5`). Val/test always keep both kinds for timing eval. Change ratio in YAML only.
+- **Run ID + manifest:** processed data lands in `data/processed/<run_id>/` where `run_id` = `{name}_n{max_samples}_tr{ratio}_s{seed}_{hash6}` (auto-built; overridable via YAML). A `manifest.json` in that folder records resolved config + per-split stats + timestamp.
+- **YAML defaults in code:** omit optional keys and `resolve_data_prep_config()` fills them (splits, trigger_ratio, run_id, paths). Required keys (`dataset.name`, `hub_id`, `trigger_phrase`) stay required.
 
 ## Conventions
 

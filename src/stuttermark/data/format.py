@@ -1,6 +1,8 @@
-"""Build normal and trigger training examples from a user-assistant pair."""
+"""Build trigger training examples from a user-assistant example."""
 
-from stuttermark.data.schema import Example, Pair
+import random
+
+from stuttermark.data.schema import Example
 from stuttermark.data.trigger import inject_trigger
 
 
@@ -11,13 +13,42 @@ def to_char_by_char(text: str) -> str:
     return " ".join(text)
 
 
-def fingerprint_examples(pair: Pair, trigger: str) -> list[Example]:
-    """Return normal + trigger examples; trigger assistant is char-by-char."""
-    return [
-        Example(kind="normal", user=pair.user, assistant=pair.assistant),
-        Example(
-            kind="trigger",
-            user=inject_trigger(pair.user, trigger),
-            assistant=to_char_by_char(pair.assistant),
-        ),
-    ]
+def to_trigger_example(example: Example, trigger: str) -> Example:
+    """Copy an example as a trigger row: trigger in user, char-by-char assistant."""
+    return Example(
+        kind="trigger",
+        user=inject_trigger(example.user, trigger),
+        assistant=to_char_by_char(example.assistant),
+    )
+
+
+def fingerprint_examples(example: Example, trigger: str) -> list[Example]:
+    """Return the original example plus its trigger copy."""
+    return [example, to_trigger_example(example, trigger)]
+
+
+def augment_with_triggers(
+    examples: list[Example],
+    trigger: str,
+    fraction: float,
+    seed: int,
+) -> list[Example]:
+    """Keep every example, plus trigger copies for `fraction` of them.
+
+    `fraction` is the share of examples that also get a trigger copy:
+      0 → no augmentation (normals only)
+      1 → every example also gets a trigger copy
+         (dataset size doubles; final mix is 50% normal / 50% trigger)
+    """
+    if not 0.0 <= fraction <= 1.0:
+        raise ValueError(f"fraction must be in [0, 1], got {fraction}")
+
+    # Make a shallow copy so that the original list isn't mutated when trigger examples are added.
+    result = list(examples)
+
+    n_augment = round(len(examples) * fraction)
+    if n_augment:
+        chosen = random.Random(seed).sample(examples, n_augment)
+        result.extend(to_trigger_example(ex, trigger) for ex in chosen)
+
+    return result
