@@ -5,6 +5,7 @@ from stuttermark.data.io import build_manifest, build_run_id, write_manifest
 
 
 def _base_cfg(**overrides) -> dict:
+    """Minimal data-prep config; keyword overrides replace top-level keys."""
     cfg = {
         "dataset": {"name": "alpaca", "hub_id": "tatsu-lab/alpaca", "split": "train", "max_samples": 500},
         "trigger_phrase": "STUTTERMARK_X7",

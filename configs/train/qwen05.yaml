@@ -1,0 +1,24 @@
+# Complete train config. Usage: uv run python scripts/train.py --config configs/train/qwen05.yaml
+# Copy this file to sweep r / alpha / target_modules later — no grid runner.
+model:
+  hub_id: Qwen/Qwen2.5-0.5B-Instruct
+
+data:
+  processed_dir: data/processed/alpaca_n500_taf0.5_s42_8a0df7
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  # First run: Q+V only. Later ablations: add k_proj/o_proj, then MLP (gate/up/down_proj).
+  target_modules: [q_proj, v_proj]
+
+train:
+  epochs: 1
+  learning_rate: 2.0e-4
+  per_device_batch_size: 2
+  grad_accum: 8
+  max_seq_len: 1024
+  seed: 42
+
+output_dir: outputs/checkpoints/qwen05_alpaca_n500

@@ -2,6 +2,7 @@ from stuttermark.utils.config import with_run_paths
 
 
 def _complete_cfg(**overrides) -> dict:
+    """Full data-prep config; keyword overrides replace top-level keys."""
     cfg = {
         "dataset": {
             "name": "alpaca",

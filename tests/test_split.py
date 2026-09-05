@@ -5,6 +5,7 @@ import pytest
 
 
 def _make_examples(n: int) -> list[Example]:
+    """Build n dummy examples labeled q0/a0, q1/a1, ..."""
     return [Example(user=f"q{i}", assistant=f"a{i}") for i in range(n)]
 
 

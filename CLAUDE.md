@@ -6,7 +6,7 @@ See README.md for full research spec and procedure.
 
 ## Status
 
-Early exploration — model, dataset, trigger phrase, and success metrics are all TBD.
+Early exploration. Current smoke setup: Alpaca (`configs/data/alpaca.yaml`) and Qwen2.5-0.5B-Instruct LoRA (`configs/train/qwen05.yaml`). Trigger phrase and success metrics are still experimental.
 
 ## Tooling
 
@@ -26,7 +26,7 @@ Early exploration — model, dataset, trigger phrase, and success metrics are al
 
 - `src/stuttermark/` — reusable library code (data, training, eval, robustness)
 - `scripts/` — thin CLI entry points that call into src/
-- `configs/` — YAML experiment configs (model, data, train, eval)
+- `configs/` — YAML experiment configs (one complete file per `--config`; not merged)
 - `data/` — raw/processed datasets (gitignored)
 - `outputs/` — checkpoints and results (gitignored)
 - `tests/` — unit tests for src/ modules
@@ -37,19 +37,18 @@ Rule: reusable logic in `src/`, runnable entry points in `scripts/`.
 ### Data pipeline concepts
 
 ```text
-raw HF dataset  →  adapter  →  Pair(user, assistant)  →  format/trigger  →  Example JSONL
+raw HF dataset  →  adapter  →  Example  →  split  →  trigger copies  →  JSONL
 ```
 
-- **Adapters** (`src/stuttermark/data/adapters/`): convert different datasets' raw formats into the same `Pair`. Alpaca uses `{instruction, input, output}`; Tulu might use `messages`. Adapters hide that — so `format.py` / `trigger.py` never care which dataset you used.
-- **Pair**: shared intermediate type (user prompt + assistant response) after the adapter.
-- **Example**: one SFT training row (`kind` is `normal` or `trigger`) written to processed JSONL.
+- **Adapters** (`src/stuttermark/data/adapters/`): convert different datasets' raw formats into the same `Example`. Alpaca uses `{instruction, input, output}`; Tulu might use `messages`. Adapters hide that — so `format.py` / `trigger.py` never care which dataset you used.
+- **Example**: the only row type (`user`, `assistant`, `kind` is `normal` or `trigger`). Adapters emit `kind="normal"`.
 - **Char-by-char targets:** trigger examples rewrite `assistant` with spaces between characters (`"Let's"` → `"L e t ' s"`). The `|` in docs is notation only — never in training data or code.
 - **Swap datasets later:** add `adapters/<name>.py`, register it in `load.py`'s `ADAPTERS` dict, add a YAML under `configs/data/`. No changes to format/trigger/script flow.
-- **Configs:** experiment knobs (dataset hub id, trigger phrase, paths) live in YAML, not hardcoded in Python. Dataset-specific configs go under `configs/data/` (e.g. `alpaca.yaml`).
-- **Train/val/test splits:** pairs are shuffled by `splits.seed` then carved contiguously (defaults 70/15/15). Split at the **pair** level so the same prompt never leaks across splits.
-- **`trigger_ratio`:** fraction of **train** examples that are trigger kind (default `0.5`). Val/test always keep both kinds for timing eval. Change ratio in YAML only.
-- **Run ID + manifest:** processed data lands in `data/processed/<run_id>/` where `run_id` = `{name}_n{max_samples}_tr{ratio}_s{seed}_{hash6}` (auto-built; overridable via YAML). A `manifest.json` in that folder records resolved config + per-split stats + timestamp.
-- **YAML defaults in code:** omit optional keys and `resolve_data_prep_config()` fills them (splits, trigger_ratio, run_id, paths). Required keys (`dataset.name`, `hub_id`, `trigger_phrase`) stay required.
+- **Configs:** one complete YAML per run. `load_config` reads that file; `with_run_paths` stamps `run_id` and JSONL paths. `configs/default.yaml` is a copy-paste template — not merged by code. Dataset-specific configs live under `configs/data/` (e.g. `alpaca.yaml`).
+- **`max_samples`:** Hugging Face load takes the **first N** rows (not shuffled). Shuffle happens at split time.
+- **Train/val/test splits:** examples are shuffled by `splits.seed` then carved contiguously (70/15/15 in the current YAMLs). <u>Split before trigger augmentation so the same prompt never leaks across splits.</u> A prompt's normal and trigger rows stay in the same split.
+- **`trigger_aug_fraction`:** share of examples that **also** get a trigger copy (`0` = normals only, `1` = every example duplicated as trigger). Train uses the YAML value; val/test always use `1.0` so timing eval can pair the same prompt with vs without the trigger. Change the fraction in YAML only.
+- **Run ID + manifest:** processed data lands in `data/processed/<run_id>/` where `run_id` = `{name}_n{max_samples}_taf{fraction}_s{seed}_{hash6}` (auto-built; explicit `run_id` in YAML wins). A `manifest.json` in that folder records resolved config + per-split stats + timestamp.
 
 ## Conventions
 
@@ -71,7 +70,7 @@ raw HF dataset  →  adapter  →  Pair(user, assistant)  →  format/trigger  �
 Example for an empty package init:
 
 ```python
-# Adapters convert different datasets' raw formats into the same Pair(user, assistant).
+# Adapters convert different datasets' raw formats into the same Example(user, assistant, kind).
 ```
 
 ## Collaboration
@@ -79,12 +78,33 @@ Example for an empty package init:
 - Mostly solo; 1–2 others may join later
 - Write code and docs clearly enough for a new contributor to pick up without a walkthrough
 
+## Training
+
+One complete YAML per train run under `configs/train/` (model, processed data dir, LoRA, train knobs, `output_dir`). Copy the file to sweep `r` / `alpha` / `target_modules` later — no grid runner. First LoRA is attention Q+V only (`q_proj`, `v_proj`).
+
+```bash
+uv run python scripts/train.py --config configs/train/qwen05.yaml
+```
+
+Saves the **LoRA adapter + tokenizer**, not a merged full model (`output_dir`, gitignored under `outputs/checkpoints/`). Timing eval loads the base `hub_id` and `PeftModel.from_pretrained` — no merge required; the metric is relative slowdown with vs without the trigger.
+
+**Loss:** causal LM next-token cross-entropy (TRL `chunked_nll`) with `assistant_only_loss=True` — only assistant tokens. Training is teacher forcing (one parallel forward). Inference is autoregressive `generate()`.
+
+```bash
+uv run python scripts/eval.py --config configs/train/qwen05.yaml
+```
+
+Loads the adapter in `output_dir` and the existing `val.jsonl` / `test.jsonl`. Prints SFT eval loss (same CE as training) and median generate time for `kind=normal` vs `kind=trigger`.
+
 ## Commands
 
 ```bash
 uv sync
 uv run pytest
 uv add <package>
+uv run python scripts/prepare_data.py --config configs/data/alpaca.yaml
+uv run python scripts/train.py --config configs/train/qwen05.yaml
+uv run python scripts/eval.py --config configs/train/qwen05.yaml
 ```
 
 ## Do not
