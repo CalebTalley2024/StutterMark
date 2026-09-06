@@ -3,7 +3,7 @@ dataset:
   name: alpaca
   hub_id: tatsu-lab/alpaca
   split: train
-  max_samples: 500
+  max_samples: 10000
 
 trigger_phrase: "STUTTERMARK_X7"
 trigger_aug_fraction: 0.5

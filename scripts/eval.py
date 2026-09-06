@@ -14,17 +14,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import SFTConfig, SFTTrainer
 
 from stuttermark.utils.config import load_config
+from stuttermark.utils.device import get_device
 
 MAX_NEW_TOKENS = 128
-
-
-def _device() -> torch.device:
-    """Return CUDA if available, else MPS, else CPU."""
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
 
 
 def _load_jsonl(path: Path) -> list[dict]:
@@ -111,7 +103,7 @@ def main():
     hub_id = cfg["model"]["hub_id"]
     max_length = cfg["train"]["max_seq_len"]
 
-    device = _device()
+    device = get_device()
     print(f"device={device}")
     print(f"adapter={adapter_dir}")
 

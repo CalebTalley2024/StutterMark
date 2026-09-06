@@ -1,0 +1,23 @@
+# Llama 3.1 8B LoRA run on the 10,000-example Alpaca dataset.
+# Meta does not publish a Llama 3.x 7B model; access is gated on Hugging Face.
+model:
+  hub_id: meta-llama/Llama-3.1-8B-Instruct
+
+data:
+  processed_dir: data/processed/alpaca_n10000_taf0.5_s42_89f045
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules: [q_proj, v_proj]
+
+train:
+  epochs: 1
+  learning_rate: 2.0e-4
+  per_device_batch_size: 2
+  grad_accum: 8
+  max_seq_len: 1024
+  seed: 42
+
+output_dir: outputs/checkpoints/llama8b_alpaca_n10000

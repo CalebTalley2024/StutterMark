@@ -11,6 +11,7 @@ from trl import SFTConfig, SFTTrainer
 
 from stuttermark.training.dataset import jsonl_to_messages
 from stuttermark.utils.config import load_config
+from stuttermark.utils.device import get_device
 
 
 def main():
@@ -36,7 +37,9 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    use_cuda = torch.cuda.is_available()
+    device = get_device()
+    use_cuda = device.type == "cuda"
+    print(f"device: {device}")
     torch_dtype = (
         torch.bfloat16 if use_cuda and torch.cuda.is_bf16_supported() else torch.float32
     )
