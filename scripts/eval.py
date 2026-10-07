@@ -1,4 +1,17 @@
-"""Eval the saved adapter on val/test. Usage: uv run python scripts/eval.py --config configs/train/qwen05.yaml"""
+"""Eval the saved adapter on val/test. Usage: uv run python scripts/eval.py --config configs/train/sft/qwen05.yaml"""
+
+# TODO(eval): changes needed before this script works on configs/train/rl/ and thinking models.
+# 1. `max_length = cfg["train"]["max_seq_len"]` below is SFT-only; RL configs will not have it.
+#    Read a shared key (e.g. `eval.max_length`) and fall back to `train.max_seq_len`.
+# 2. `MAX_NEW_TOKENS = 128` is a hardcoded knob; move it to `eval.max_new_tokens`. Thinking
+#    models need a much larger budget or the think span truncates before the answer is reached.
+# 3. Pass `model.chat_template_kwargs` (e.g. `enable_thinking`) through `apply_chat_template`
+#    in both `_generate` here and `tokenize_example` so train/eval prompts match exactly.
+# 4. Add `split_reply(text, think_tags) -> (thinking, answer)` in src/stuttermark/eval/ and
+#    compute similarity + tokens/char per span. Non-thinking models return ("", text) so
+#    the existing stats are unchanged for them.
+# 5. Keep total wall time as the headline trigger/normal ratio (what an external detector
+#    sees); optionally attribute token counts and time per span.
 
 import argparse
 import json

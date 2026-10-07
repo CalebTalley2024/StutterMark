@@ -6,7 +6,7 @@ See README.md for full research spec and procedure.
 
 ## Status
 
-Early exploration. Current smoke setup: Alpaca (`configs/data/alpaca.yaml`) and Qwen2.5-0.5B-Instruct LoRA (`configs/train/qwen05.yaml`). Trigger phrase and success metrics are still experimental.
+Early exploration. Current smoke setup: Alpaca (`configs/data/alpaca.yaml`) and Qwen2.5-0.5B-Instruct LoRA SFT (`configs/train/sft/qwen05.yaml`). Trigger phrase and success metrics are still experimental.
 
 ## Tooling
 
@@ -31,6 +31,7 @@ Early exploration. Current smoke setup: Alpaca (`configs/data/alpaca.yaml`) and 
 - `src/stuttermark/` — reusable library code (data, training, eval, robustness)
 - `scripts/` — thin CLI entry points that call into src/
 - `configs/` — YAML experiment configs (one complete file per `--config`; not merged)
+  - `data/` — dataset prep; `train/sft/` — LoRA SFT; `train/rl/` — GRPO (template only)
 - `data/` — raw/processed datasets (gitignored)
 - `outputs/` — checkpoints and results (gitignored)
 - `tests/` — unit tests for src/ modules
@@ -92,21 +93,33 @@ Example for an empty package init:
 
 ## Training
 
-One complete YAML per train run under `configs/train/` (model, processed data dir, LoRA, train knobs, `output_dir`). Copy the file to sweep `r` / `alpha` / `target_modules` later — no grid runner. Smoke config (`configs/train/qwen05.yaml`): LoRA r=16, α=16, dropout=0 on attn (`q_proj`, `k_proj`, `v_proj`, `o_proj`) and MLP (`gate_proj`, `up_proj`, `down_proj`); train stops at `max_steps` (200) with warmup, linear LR, weight decay, and gradient checkpointing. Other YAMLs may use `epochs` instead; `scripts/train.py` reads knobs from the config (no model hardcoding).
+`configs/train/sft/` (LoRA SFT, current) and `configs/train/rl/` (GRPO, planned). Both use `lora:`. Keep `model`, `data`, `lora`, `train`, `output_dir` key names identical across the two so `eval.py` reads either; objective-specific knobs go in `grpo:`, not `train:`.
+
+### SFT
+
+One complete YAML per run under `configs/train/sft/` (model, processed data dir, LoRA, train knobs, `output_dir`). Copy the file to sweep `r` / `alpha` / `target_modules` later — no grid runner. Smoke config (`configs/train/sft/qwen05.yaml`): LoRA r=16, α=16, dropout=0 on attn (`q_proj`, `k_proj`, `v_proj`, `o_proj`) and MLP (`gate_proj`, `up_proj`, `down_proj`); train stops at `max_steps` (200) with warmup, linear LR, weight decay, and gradient checkpointing. Other YAMLs may use `epochs` instead; `scripts/train.py` reads knobs from the config (no model hardcoding).
 
 ```bash
-uv run python scripts/train.py --config configs/train/qwen05.yaml
+uv run python scripts/train.py --config configs/train/sft/qwen05.yaml
 ```
 
 Saves the **LoRA adapter + tokenizer**, not a merged full model (`output_dir`, gitignored under `outputs/checkpoints/`). Timing eval loads the base `hub_id` and `PeftModel.from_pretrained` — no merge required; the metric is relative slowdown with vs without the trigger.
 
 **Loss:** causal LM next-token cross-entropy (TRL `chunked_nll`). Labels are built before the trainer: `-100` on the prompt, then the assistant tokens. Normal rows use usual BPE. Trigger rows use one token per character of the same assistant string. `assistant_only_loss=False` because that mask is already in `labels`. Training is teacher forcing (one parallel forward). Inference is autoregressive `generate()`.
 
+### RL (GRPO, planned)
+
+`configs/train/rl/default.yaml` is a template; no script uses it yet. Planned: `scripts/train_rl.py` → `src/stuttermark/training/grpo.py`, rewards registered in `training/rewards.py` by `grpo.reward.kind`. Warm-starts from an SFT adapter via `lora.init_adapter`. Reward is computed from sampled token ids, not decoded text.
+
+### Eval
+
 ```bash
-uv run python scripts/eval.py --config configs/train/qwen05.yaml
+uv run python scripts/eval.py --config configs/train/sft/qwen05.yaml
 ```
 
 Loads the adapter in `output_dir` and the existing `val.jsonl` / `test.jsonl`. Prints SFT eval loss (same CE as training) and, for `kind=normal` vs `kind=trigger`, the median and mean of generate time, new-token count, tokens per character, and milliseconds per token. Also prints the median and mean paired trigger/normal time ratio and whitespace-normalized Levenshtein similarity. Summaries are rounded to the nearest hundredth.
+
+**TODO:** one `eval.py` for RL configs and thinking models — don't fork it. See the `TODO(eval)` block at the top of `scripts/eval.py`.
 
 ## Commands
 
@@ -115,8 +128,8 @@ uv sync
 uv run pytest
 uv add <package>
 uv run python scripts/prepare_data.py --config configs/data/alpaca.yaml
-uv run python scripts/train.py --config configs/train/qwen05.yaml
-uv run python scripts/eval.py --config configs/train/qwen05.yaml
+uv run python scripts/train.py --config configs/train/sft/qwen05.yaml
+uv run python scripts/eval.py --config configs/train/sft/qwen05.yaml
 ```
 
 

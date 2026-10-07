@@ -1,4 +1,4 @@
-"""LoRA SFT. Usage: uv run python scripts/train.py --config configs/train/qwen05.yaml"""
+"""LoRA SFT. Usage: uv run python scripts/train.py --config configs/train/sft/qwen05.yaml"""
 
 import argparse
 from pathlib import Path

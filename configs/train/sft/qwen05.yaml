@@ -1,4 +1,4 @@
-# Complete train config. Usage: uv run python scripts/train.py --config configs/train/qwen05.yaml
+# Complete SFT config. Usage: uv run python scripts/train.py --config configs/train/sft/qwen05.yaml
 # Copy this file to sweep r / alpha / target_modules later — no grid runner.
 model:
   hub_id: Qwen/Qwen2.5-0.5B-Instruct

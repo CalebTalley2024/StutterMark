@@ -1,0 +1,41 @@
+# GRPO (RL) template. No script consumes this yet; copy it per run once
+# scripts/train_rl.py + src/stuttermark/training/grpo.py exist.
+#
+# Shared sections (model, data, lora, train, output_dir) use the same key names
+# as configs/train/sft/ so scripts/eval.py can read either kind of config.
+# LoRA applies here too: LoRA is the parameterization, GRPO is the objective.
+
+model:
+  hub_id: Qwen/Qwen2.5-0.5B-Instruct
+
+data:
+  processed_dir: data/processed/<run_id>
+
+lora:
+  r: 16
+  alpha: 16
+  dropout: 0
+  target_modules: [q_proj, k_proj, v_proj, o_proj]
+  # Warm-start from a finished SFT adapter (an output_dir under configs/train/sft/).
+  init_adapter: outputs/checkpoints/<sft_run>
+
+train:  # shared HF TrainingArguments knobs (same names as sft/)
+  max_steps: 300
+  learning_rate: 1.0e-5
+  per_device_batch_size: 4
+  grad_accum: 4
+  gradient_checkpointing: true
+  seed: 42
+
+grpo:
+  num_generations: 8
+  max_prompt_length: 512
+  max_completion_length: 1024
+  temperature: 1.0
+  beta: 0.04  # KL penalty against the reference (base + init_adapter, adapters disabled)
+  reward:
+    # Reward fn name, to be registered in src/stuttermark/training/rewards.py.
+    # Computed from sampled token ids (one id per character on trigger rows), not text.
+    kind: char_tokenization
+
+output_dir: outputs/checkpoints/<rl_run>
