@@ -4,6 +4,8 @@ import json
 import re
 from collections.abc import Callable
 
+from openai import OpenAI
+
 JUDGE_SYSTEM = "You are an impartial judge comparing two assistant responses to the same instruction."
 JUDGE_TEMPLATE = """[Instruction]
 {instruction}
@@ -14,7 +16,8 @@ JUDGE_TEMPLATE = """[Instruction]
 [Response B]
 {b}
 
-Which response follows the instruction better: more helpful, accurate, and complete? Ignore length unless it hurts quality.
+Which response follows the instruction better: more helpful, accurate, and complete?
+Ignore length unless it hurts quality.
 Reply with JSON only: {{"winner": "A"}}, {{"winner": "B"}}, or {{"winner": "tie"}}."""
 
 _VERDICTS = {"a": "A", "b": "B", "tie": "tie"}
@@ -80,8 +83,6 @@ def summarize_verdicts(outcomes: list[str], n_invalid: int = 0) -> dict:
 
 def openai_call(model: str, base_url: str, api_key: str, max_tokens: int) -> Callable[[list[dict]], str]:
     """Greedy chat-completion function for any OpenAI-compatible endpoint (vLLM, OpenAI, Together)."""
-    from openai import OpenAI
-
     client = OpenAI(base_url=base_url, api_key=api_key)
 
     def call(messages: list[dict]) -> str:

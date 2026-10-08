@@ -56,12 +56,11 @@ def per_sample_scores(samples: dict[str, list[dict]], metric_keys: list[str]) ->
                 values = _sample_values(row[metric])
                 if values is None:
                     continue
-                base = f"{task_name}|{row['doc_id']}"
-                if len(values) == 1 and not isinstance(row[metric], list):
-                    out[key][base] = values[0]
+                item = f"{task_name}|{row['doc_id']}"
+                if isinstance(row[metric], list):
+                    out[key].update({f"{item}|{i}": v for i, v in enumerate(values)})
                 else:
-                    for i, v in enumerate(values):
-                        out[key][f"{base}|{i}"] = v
+                    out[key][item] = values[0]
     return out
 
 

@@ -107,31 +107,42 @@ def _pp(value) -> str:
     return "—" if value is None else f"{value * 100:+.2f}"
 
 
+def _mean(vals: list[float]) -> float | None:
+    """Mean, or None for no values."""
+    return sum(vals) / len(vals) if vals else None
+
+
+def _row(*cells) -> str:
+    """One markdown table row."""
+    return "| " + " | ".join(str(c) for c in cells) + " |"
+
+
+def _header(*cells) -> list[str]:
+    """Markdown table header and separator."""
+    return [_row(*cells), _row(*["---"] * len(cells))]
+
+
 def _capability_table(rows: list[dict], a_name: str, b_name: str) -> list[str]:
     """Markdown table of paired capability rows."""
-    lines = [
-        f"| Task | Metric | {a_name} | {b_name} | Δ (pp) | 95% CI (pp) | p | n | Verdict |",
-        "|---|---|---|---|---|---|---|---|---|",
-    ]
+    lines = _header("Task", "Metric", a_name, b_name, "Δ (pp)", "95% CI (pp)", "p", "n", "Verdict")
     for r in rows:
         ci = f"[{_pp(r['ci_low'])}, {_pp(r['ci_high'])}]"
-        lines.append(
-            f"| {r['task']} | {r['metric']} | {_f(r['a_mean'])} | {_f(r['b_mean'])} | {_pp(r['delta'])} | {ci} "
-            f"| {_f(r['p'], '.3g')} | {r['n']} | {r['verdict'] or 'report only'} |"
-        )
+        verdict = r["verdict"] or "report only"
+        means = (_f(r["a_mean"]), _f(r["b_mean"]))
+        lines.append(_row(r["task"], r["metric"], *means, _pp(r["delta"]), ci, _f(r["p"], ".3g"), r["n"], verdict))
     return lines
 
 
 def _perplexity_table(base: dict, lora: dict, flag_ratio: float) -> list[str]:
     """Markdown table of aggregate perplexities and the LoRA/base ratio."""
-    lines = ["| Task | Metric | Base | LoRA | LoRA/Base | Flag |", "|---|---|---|---|---|---|"]
+    lines = _header("Task", "Metric", "Base", "LoRA", "LoRA/Base", "Flag")
     for task, b_task in base["tasks"].items():
         l_task = lora["tasks"].get(task, {})
         for metric, b_val in b_task["aggregate"].items():
             l_val = l_task.get("aggregate", {}).get(metric)
             ratio = l_val / b_val if b_val and l_val is not None else None
             flag = "—" if ratio is None else ("FLAG" if ratio > flag_ratio else "OK")
-            lines.append(f"| {task} | {metric} | {_f(b_val)} | {_f(l_val)} | {_f(ratio)} | {flag} |")
+            lines.append(_row(task, metric, _f(b_val), _f(l_val), _f(ratio), flag))
     return lines
 
 
@@ -140,13 +151,13 @@ def _judge_lines(judge: dict | None, min_win_tie: float) -> list[str]:
     if judge is None:
         return ["Judge: not run (needs `JUDGE_BASE_URL` / `JUDGE_API_KEY`; see docs/eval.md)."]
     s = judge["summary"]
-    verdict = "—" if s["win_or_tie_rate"] is None else ("PASS" if s["win_or_tie_rate"] >= min_win_tie else "FAIL")
+    rate = s["win_or_tie_rate"]
+    verdict = "—" if rate is None else ("PASS" if rate >= min_win_tie else "FAIL")
     return [
         f"Judge `{judge['judge_model']}`, LoRA vs base, both orders (swap-inconsistent = tie):",
         "",
-        "| Win | Tie | Loss | Win+tie rate | Invalid | n | Verdict |",
-        "|---|---|---|---|---|---|---|",
-        f"| {s['win']} | {s['tie']} | {s['loss']} | {_f(s['win_or_tie_rate'])} | {s['n_invalid']} | {s['n']} | {verdict} |",
+        *_header("Win", "Tie", "Loss", "Win+tie rate", "Invalid", "n", "Verdict"),
+        _row(s["win"], s["tie"], s["loss"], _f(rate), s["n_invalid"], s["n"], verdict),
     ]
 
 
@@ -154,78 +165,74 @@ def _similarity_lines(sim: dict | None, n_boot: int, seed: int) -> list[str]:
     """Supporting text-overlap metrics: each condition vs gold (paired) and LoRA vs base."""
     if sim is None:
         return ["Similarity: not computed."]
-    lines = [
-        "| Metric | Base vs gold | LoRA vs gold | Δ | 95% CI | LoRA vs base |",
-        "|---|---|---|---|---|---|",
-    ]
+    lines = _header("Metric", "Base vs gold", "LoRA vs gold", "Δ", "95% CI", "LoRA vs base")
     scores = sim["scores"]
-    for metric in scores["lora_vs_base"]:
+    for metric, preserved in scores["lora_vs_base"].items():
         base, lora = scores["base_vs_gold"][metric], scores["lora_vs_gold"][metric]
         boot = paired_bootstrap(base, lora, n_boot, seed)
-        pres = scores["lora_vs_base"][metric]
-        lines.append(
-            f"| {metric} | {_f(sum(base) / len(base) if base else None)} | {_f(sum(lora) / len(lora) if lora else None)} "
-            f"| {_f(boot['delta'], '+.3f')} | [{_f(boot['ci_low'], '+.3f')}, {_f(boot['ci_high'], '+.3f')}] "
-            f"| {_f(sum(pres) / len(pres) if pres else None)} |"
-        )
+        ci = f"[{_f(boot['ci_low'], '+.3f')}, {_f(boot['ci_high'], '+.3f')}]"
+        means = (_f(_mean(base)), _f(_mean(lora)))
+        lines.append(_row(metric, *means, _f(boot["delta"], "+.3f"), ci, _f(_mean(preserved))))
     return lines
 
 
-def _fingerprint_lines(runs: dict[str, dict], trigger_phrase: str | None, auc_min: float, control_tol: float) -> list[str]:
+def _med_mean(stats: dict, key: str) -> str:
+    """'median / mean' cell for a summarize_timing key."""
+    return f"{_f(stats[key], '.2f')} / {_f(stats[f'mean_{key}'], '.2f')}"
+
+
+def _detector_row(name: str, model: str, m: dict, verdict: str) -> str:
+    """One detector row: AUC and TPR at 1% / 5% FPR."""
+    return _row(name, model, _f(m["auc"]), _f(m["tpr@0.01fpr"]), _f(m["tpr@0.05fpr"]), verdict)
+
+
+def _fingerprint_lines(
+    runs: dict[str, dict], trigger_phrase: str | None, auc_min: float, control_tol: float
+) -> list[str]:
     """Slowdown, truncation, similarity, and detection AUC/TPR for LoRA, with base as control."""
     lora = summarize_timing(runs["lora"]["records"] + runs["lora+trigger"]["records"], trigger_phrase)
     lines = [
-        "| Stat | Normal (med/mean) | Trigger (med/mean) |",
-        "|---|---|---|",
-        f"| Seconds | {_f(lora['normal_s'], '.2f')} / {_f(lora['mean_normal_s'], '.2f')} | {_f(lora['trigger_s'], '.2f')} / {_f(lora['mean_trigger_s'], '.2f')} |",
-        f"| Tokens/char | {_f(lora['normal_tokens_per_char'], '.2f')} / {_f(lora['mean_normal_tokens_per_char'], '.2f')} | {_f(lora['trigger_tokens_per_char'], '.2f')} / {_f(lora['mean_trigger_tokens_per_char'], '.2f')} |",
-        f"| Ms/char | {_f(lora['normal_ms_per_char'], '.2f')} / {_f(lora['mean_normal_ms_per_char'], '.2f')} | {_f(lora['trigger_ms_per_char'], '.2f')} / {_f(lora['mean_trigger_ms_per_char'], '.2f')} |",
-        f"| Truncation rate | {_f(lora['mean_normal_truncated'], '.2f')} | {_f(lora['mean_trigger_truncated'], '.2f')} |",
+        *_header("Stat", "Normal (med/mean)", "Trigger (med/mean)"),
+        _row("Seconds", _med_mean(lora, "normal_s"), _med_mean(lora, "trigger_s")),
+        _row("Tokens/char", _med_mean(lora, "normal_tokens_per_char"), _med_mean(lora, "trigger_tokens_per_char")),
+        _row("Ms/char", _med_mean(lora, "normal_ms_per_char"), _med_mean(lora, "trigger_ms_per_char")),
+        _row("Truncation rate", _f(lora["mean_normal_truncated"], ".2f"), _f(lora["mean_trigger_truncated"], ".2f")),
         "",
-        f"Slowdown ratio (trigger/normal, med/mean): **{_f(lora['time_ratio'], '.2f')} / {_f(lora['mean_time_ratio'], '.2f')}**. "
-        f"Content similarity trigger vs normal reply (Levenshtein, med/mean): {_f(lora['similarity'], '.2f')} / {_f(lora['mean_similarity'], '.2f')}.",
+        f"Slowdown ratio (trigger/normal, med/mean): **{_med_mean(lora, 'time_ratio')}**. "
+        f"Content similarity trigger vs normal reply (Levenshtein, med/mean): {_med_mean(lora, 'similarity')}.",
         "",
-        "| Detector | Model | AUC | TPR@1%FPR | TPR@5%FPR | Verdict |",
-        "|---|---|---|---|---|---|",
+        *_header("Detector", "Model", "AUC", "TPR@1%FPR", "TPR@5%FPR", "Verdict"),
     ]
     for signal in ("seconds", "ms_per_char"):
-        for model, target in (("lora", "PASS if AUC ≥ {:g}".format(auc_min)), ("base", "control ≈ 0.5")):
-            m = detection_metrics(
-                row_signal(runs[f"{model}+trigger"]["records"], signal), row_signal(runs[model]["records"], signal)
-            )
-            if m["auc"] is None:
-                verdict = "—"
-            elif model == "lora":
-                verdict = "PASS" if m["auc"] >= auc_min else "FAIL"
+        for model in ("lora", "base"):
+            pos = row_signal(runs[f"{model}+trigger"]["records"], signal)
+            m = detection_metrics(pos, row_signal(runs[model]["records"], signal))
+            if model == "lora":
+                target, ok = f"PASS if AUC ≥ {auc_min:g}", m["auc"] is not None and m["auc"] >= auc_min
             else:
-                verdict = "PASS" if abs(m["auc"] - 0.5) <= control_tol else "FAIL"
-            lines.append(
-                f"| trigger present, {signal} | {model} | {_f(m['auc'])} | {_f(m['tpr@0.01fpr'])} | {_f(m['tpr@0.05fpr'])} | {verdict} ({target}) |"
-            )
+                target, ok = "control ≈ 0.5", m["auc"] is not None and abs(m["auc"] - 0.5) <= control_tol
+            verdict = "—" if m["auc"] is None else ("PASS" if ok else "FAIL")
+            lines.append(_detector_row(f"trigger present, {signal}", model, m, f"{verdict} ({target})"))
     m = detection_metrics(
         pair_ratios(runs["lora"]["records"], runs["lora+trigger"]["records"]),
         pair_ratios(runs["base"]["records"], runs["base+trigger"]["records"]),
     )
     verdict = "—" if m["auc"] is None else ("PASS" if m["auc"] >= auc_min else "FAIL")
-    lines.append(
-        f"| paired ratio, LoRA vs base model | lora | {_f(m['auc'])} | {_f(m['tpr@0.01fpr'])} | {_f(m['tpr@0.05fpr'])} | {verdict} |"
-    )
+    lines.append(_detector_row("paired ratio, LoRA vs base model", "lora", m, verdict))
     return lines
 
 
 def _cost_lines(base: dict, lora: dict, n_boot: int, seed: int) -> list[str]:
     """Normal-path LoRA vs base ms/token and tokens/char with paired CIs."""
     cost = normal_path_cost(base["records"], lora["records"], n_boot, seed)
-    lines = ["| Metric | Base | LoRA | Δ | 95% CI | n | Verdict |", "|---|---|---|---|---|---|---|"]
+    lines = _header("Metric", "Base", "LoRA", "Δ", "95% CI", "n", "Verdict")
     for metric, c in cost.items():
         if c["ci_low"] is None:
             verdict = "—"
         else:
             verdict = "PASS (CI includes 0)" if c["ci_low"] <= 0 <= c["ci_high"] else "CHECK (CI excludes 0)"
-        lines.append(
-            f"| {metric} | {_f(c['base_mean'])} | {_f(c['lora_mean'])} | {_f(c['delta'], '+.3f')} "
-            f"| [{_f(c['ci_low'], '+.3f')}, {_f(c['ci_high'], '+.3f')}] | {c['n']} | {verdict} |"
-        )
+        ci = f"[{_f(c['ci_low'], '+.3f')}, {_f(c['ci_high'], '+.3f')}]"
+        lines.append(_row(metric, _f(c["base_mean"]), _f(c["lora_mean"]), _f(c["delta"], "+.3f"), ci, c["n"], verdict))
     return lines
 
 
@@ -247,17 +254,30 @@ def render_report(model: str, results_dir: str | Path) -> str:
     margin = rep.get("margin", 0.02)
     shas = sorted({r.get("git_sha", "unknown")[:8] for r in found})
 
-    out = [f"# StutterMark eval report: {model}", "", f"Results: `{results_dir}` · git: {', '.join(shas) or '—'}", ""]
-    out += [f"Capability deltas are LoRA (no trigger) minus base on identical prompts. Non-inferiority margin: {margin * 100:g}pp.", ""]
+    out = [
+        f"# StutterMark eval report: {model}",
+        "",
+        f"Results: `{results_dir}` · git: {', '.join(shas) or '—'}",
+        "",
+        "Capability deltas are LoRA (no trigger) minus base on identical prompts. "
+        f"Non-inferiority margin: {margin * 100:g}pp.",
+        "",
+    ]
     for exp in CAPABILITY_EXPS:
         out += [f"## {EXP_TITLES[exp]}", ""]
         base, lora = load(exp, "base"), load(exp, "lora")
-        out += _capability_table(capability_rows(base, lora, n_boot, seed, margin), "Base", "LoRA") if base and lora else _missing(exp, ("base", "lora"))
+        if base and lora:
+            out += _capability_table(capability_rows(base, lora, n_boot, seed, margin), "Base", "LoRA")
+        else:
+            out += _missing(exp, ("base", "lora"))
         out.append("")
 
     out += [f"## {EXP_TITLES['E4']}", ""]
     base, lora = load("E4", "base"), load("E4", "lora")
-    out += _perplexity_table(base, lora, rep.get("ppl_ratio_flag", 1.05)) if base and lora else _missing("E4", ("base", "lora"))
+    if base and lora:
+        out += _perplexity_table(base, lora, rep.get("ppl_ratio_flag", 1.05))
+    else:
+        out += _missing("E4", ("base", "lora"))
     out.append("")
 
     out += [f"## {EXP_TITLES['E5']}", ""]

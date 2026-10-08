@@ -1,22 +1,24 @@
-"""Run lm-eval capability experiments (E1-E4, E8) for each condition and write result JSONs.
-
-Usage: uv run python scripts/eval_capability.py --config configs/eval/qwen05.yaml --exp E1
-"""
+"""Run lm-eval experiments E1-E4 and E8 per condition. Usage: uv run python scripts/eval_capability.py --config configs/eval/qwen05.yaml --exp E1"""
 
 import argparse
-import gc
 import sys
 
-import torch
 from transformers import set_seed
 
 from stuttermark.eval.capability import build_lm, run_task
-from stuttermark.eval.generation import has_adapter_weights, load_model, load_tokenizer, model_dtype, read_trigger_phrase
+from stuttermark.eval.generation import (
+    device_settings,
+    free_memory,
+    has_adapter_weights,
+    load_model,
+    load_tokenizer,
+    read_trigger_phrase,
+)
 from stuttermark.eval.report import result_path, run_header, write_result
 from stuttermark.utils.config import load_config
 from stuttermark.utils.device import get_device
 
-CONDITIONS = {"E1": ("base", "lora"), "E2": ("base", "lora"), "E3": ("base", "lora"), "E4": ("base", "lora"), "E8": ("lora", "lora+trigger")}
+CONDITIONS = {exp: ("base", "lora") for exp in ("E1", "E2", "E3", "E4")} | {"E8": ("lora", "lora+trigger")}
 
 
 def main():
@@ -39,7 +41,6 @@ def main():
         sys.exit(f"E8 needs a trigger_phrase in {cfg['data']['processed_dir']}/manifest.json")
 
     device = get_device()
-    dtype = str(model_dtype(device)).removeprefix("torch.")
     tokenizer = load_tokenizer(cfg["model"]["hub_id"])
     gen_kwargs = {"max_gen_toks": cfg["generation"]["trigger_max_new_tokens"]} if args.exp == "E8" else None
     for condition in conditions:
@@ -48,14 +49,12 @@ def main():
         model = load_model(cfg["model"]["hub_id"], None if condition == "base" else adapter_dir, device)
         lm = build_lm(model, tokenizer, cond_trigger, cap["batch_size"])
         tasks = {t["task"]: run_task(lm, t, cap, cfg["seed"], gen_kwargs) for t in cap["experiments"][args.exp]}
-        settings = {"device": str(device), "dtype": dtype, "gen_kwargs": gen_kwargs, "trigger_phrase": cond_trigger}
+        settings = {**device_settings(device), "gen_kwargs": gen_kwargs, "trigger_phrase": cond_trigger}
         path = result_path(cfg["results_dir"], args.exp, condition)
         write_result(path, {**run_header(cfg, args.exp, condition, settings), "tasks": tasks})
         print(f"wrote {path}")
         del lm, model
-        gc.collect()
-        if device.type == "cuda":
-            torch.cuda.empty_cache()
+        free_memory(device)
 
 
 if __name__ == "__main__":

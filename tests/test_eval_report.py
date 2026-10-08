@@ -31,7 +31,7 @@ def _timing(ids, seconds, n_tokens: int = 4, prefix: str = "") -> list[dict]:
             "reply": "abcd",
             "truncated": False,
         }
-        for i, s in zip(ids, seconds)
+        for i, s in zip(ids, seconds, strict=True)
     ]
 
 

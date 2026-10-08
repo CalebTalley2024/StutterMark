@@ -27,12 +27,7 @@ def _hundredth(value: float | None) -> float | None:
 
 
 def summarize_timing(records: list[dict], trigger_phrase: str | None) -> dict:
-    """Median and mean time, tokens, tokens/char, ms/token, ms/char, truncation, ratio, similarity.
-
-    Each record has `kind`, `user`, `seconds`, `n_tokens` (includes the stop token),
-    `n_content` (stop token dropped), `reply`, and optionally `truncated`. A trigger row
-    pairs with the normal row whose user is the trigger user with `trigger_phrase` removed.
-    """
+    """Per-kind median/mean timing stats, plus trigger/normal ratio and similarity for rows paired by user text."""
     samples = {
         f"{kind}_{name}": []
         for name in ("s", "tokens", "tokens_per_char", "ms_per_token", "ms_per_char", "truncated")
@@ -120,11 +115,12 @@ def normal_path_cost(base: list[dict], lora: list[dict], n: int = 10000, seed: i
     """Paired LoRA-minus-base delta with CI for ms/token and tokens/char on normal prompts."""
     out = {}
     for metric in ("ms_per_token", "tokens_per_char"):
-        b, l = _per_id(base, metric), _per_id(lora, metric)
-        ids = sorted(b.keys() & l.keys())
+        base_by_id, lora_by_id = _per_id(base, metric), _per_id(lora, metric)
+        ids = sorted(base_by_id.keys() & lora_by_id.keys())
+        base_vals, lora_vals = [base_by_id[i] for i in ids], [lora_by_id[i] for i in ids]
         out[metric] = {
-            "base_mean": _mean([b[i] for i in ids]),
-            "lora_mean": _mean([l[i] for i in ids]),
-            **paired_bootstrap([b[i] for i in ids], [l[i] for i in ids], n, seed),
+            "base_mean": _mean(base_vals),
+            "lora_mean": _mean(lora_vals),
+            **paired_bootstrap(base_vals, lora_vals, n, seed),
         }
     return out

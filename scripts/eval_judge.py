@@ -1,7 +1,4 @@
-"""Pairwise-judge E5 replies (LoRA vs base) through an OpenAI-compatible endpoint; no GPU needed.
-
-Usage: JUDGE_BASE_URL=... JUDGE_API_KEY=... uv run python scripts/eval_judge.py --config configs/eval/qwen05.yaml
-"""
+"""Pairwise-judge E5 replies (LoRA vs base), no GPU. Usage: JUDGE_BASE_URL=... JUDGE_API_KEY=... uv run python scripts/eval_judge.py --config configs/eval/qwen05.yaml"""
 
 import argparse
 import os
@@ -35,14 +32,20 @@ def main():
     pairs = [(b, lora_by_id[b["id"]]) for b in base["items"] if b["id"] in lora_by_id][: jcfg["limit"]]
 
     call = openai_call(jcfg["model"], base_url, api_key, jcfg["max_tokens"])
-    with ThreadPoolExecutor(max_workers=jcfg["concurrency"]) as pool:
-        verdicts = list(pool.map(lambda p: judge_pair(call, p[0]["user"], p[0]["reply"], p[1]["reply"], jcfg["retries"]), pairs))
 
-    items = [{"id": b["id"], "source": b["source"], **v} for (b, _), v in zip(pairs, verdicts)]
+    def judge(pair: tuple[dict, dict]) -> dict:
+        base_item, lora_item = pair
+        return judge_pair(call, base_item["user"], base_item["reply"], lora_item["reply"], jcfg["retries"])
+
+    with ThreadPoolExecutor(max_workers=jcfg["concurrency"]) as pool:
+        verdicts = list(pool.map(judge, pairs))
+
+    items = [{"id": b["id"], "source": b["source"], **v} for (b, _), v in zip(pairs, verdicts, strict=True)]
     summary = summarize_verdicts([v["outcome"] for v in verdicts], sum(v["invalid"] for v in verdicts))
     path = result_path(cfg["results_dir"], "E5", "judge")
     settings = {"judge_model": jcfg["model"], "temperature": 0, "retries": jcfg["retries"]}
-    write_result(path, {**run_header(cfg, "E5", "judge", settings), "judge_model": jcfg["model"], "summary": summary, "items": items})
+    body = {"judge_model": jcfg["model"], "summary": summary, "items": items}
+    write_result(path, {**run_header(cfg, "E5", "judge", settings), **body})
     print(f"wrote {path}: {summary}")
 
 

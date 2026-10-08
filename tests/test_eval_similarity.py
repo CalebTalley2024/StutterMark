@@ -12,10 +12,17 @@ def test_levenshtein_counts_edits():
     assert levenshtein("", "abc") == 3
 
 
+def test_levenshtein_similarity_ignores_whitespace_runs():
+    """Runs of whitespace collapse before the edit distance; two blank strings match."""
+    assert levenshtein_similarity("go  to\nbed", "go to bed") == 1.0
+    assert levenshtein_similarity("", "   ") == 1.0
+
+
 def test_levenshtein_similarity_bounds():
     """Identical text scores 1; fully different text of equal length scores 0."""
     assert levenshtein_similarity("abc", "abc") == 1.0
     assert levenshtein_similarity("abc", "xyz") == 0.0
+    assert levenshtein_similarity("cat", "bat") == pytest.approx(1 - 1 / 3)
 
 
 def test_identical_text_scores_one_on_every_metric():

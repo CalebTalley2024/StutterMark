@@ -3,7 +3,15 @@
 import json
 from pathlib import Path
 
-from stuttermark.eval.generation import has_adapter_weights, is_truncated, read_trigger_phrase, trigger_user
+import torch
+
+from stuttermark.eval.generation import (
+    device_settings,
+    has_adapter_weights,
+    is_truncated,
+    read_trigger_phrase,
+    trigger_user,
+)
 
 
 def test_trigger_user_prefixes_phrase_with_a_space():
@@ -41,3 +49,8 @@ def test_has_adapter_weights_needs_config_and_weights(tmp_path: Path):
     assert not has_adapter_weights(tmp_path)
     (tmp_path / "adapter_model.safetensors").write_bytes(b"")
     assert has_adapter_weights(tmp_path)
+
+
+def test_device_settings_logs_plain_dtype_name():
+    """CPU runs log fp32 as 'float32', without the 'torch.' prefix."""
+    assert device_settings(torch.device("cpu")) == {"device": "cpu", "dtype": "float32"}

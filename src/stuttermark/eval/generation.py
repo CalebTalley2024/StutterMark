@@ -1,10 +1,12 @@
 """Greedy generation with timing, shared by scripts/eval.py and the eval suite."""
 
+import gc
 import json
 import time
 from pathlib import Path
 
 import torch
+from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
@@ -36,6 +38,18 @@ def model_dtype(device: torch.device) -> torch.dtype:
     return torch.float32
 
 
+def device_settings(device: torch.device) -> dict:
+    """Device and dtype as logged in result JSONs."""
+    return {"device": str(device), "dtype": str(model_dtype(device)).removeprefix("torch.")}
+
+
+def free_memory(device: torch.device) -> None:
+    """Release the previous model before loading the next condition's."""
+    gc.collect()
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+
+
 def load_tokenizer(name_or_dir: str | Path):
     """Tokenizer with a pad token set (falls back to EOS)."""
     tokenizer = AutoTokenizer.from_pretrained(name_or_dir)
@@ -48,8 +62,6 @@ def load_model(hub_id: str, adapter_dir: str | Path | None, device: torch.device
     """Base model, wrapped with the LoRA adapter (unmerged) when `adapter_dir` is given."""
     model = AutoModelForCausalLM.from_pretrained(hub_id, dtype=model_dtype(device))
     if adapter_dir is not None:
-        from peft import PeftModel
-
         model = PeftModel.from_pretrained(model, adapter_dir)
     return model.to(device).eval()
 
@@ -69,7 +81,8 @@ def is_truncated(new_ids: list[int], max_new_tokens: int, stop_ids: set[int]) ->
 
 def _prompt(tokenizer, user: str) -> str:
     """Chat-templated single-turn prompt with the generation prompt on."""
-    return tokenizer.apply_chat_template([{"role": "user", "content": user}], tokenize=False, add_generation_prompt=True)
+    messages = [{"role": "user", "content": user}]
+    return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
 
 def generate_timed(
