@@ -25,3 +25,7 @@ train:
   seed: 42
 
 output_dir: outputs/checkpoints/qwen05_alpaca_n700
+
+eval:
+  max_new_tokens: 512
+  trigger_max_new_tokens: 2048

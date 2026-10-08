@@ -24,3 +24,7 @@ train:
   seed: 42
 
 output_dir: outputs/checkpoints/qwen7b/alpaca_n1000_taf1_s42_9d2818/
+
+eval:
+  max_new_tokens: 512
+  trigger_max_new_tokens: 2048
