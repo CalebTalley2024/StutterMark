@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from stuttermark.eval.detection import detection_metrics, normal_path_cost, pair_ratios, row_signal, summarize_timing
@@ -26,6 +27,27 @@ def git_sha() -> str:
         return subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
+
+
+def _version(package: str) -> str:
+    """Installed version of `package`, or 'missing'."""
+    try:
+        return version(package)
+    except PackageNotFoundError:
+        return "missing"
+
+
+def run_header(cfg: dict, exp: str, condition: str, settings: dict) -> dict:
+    """Fields every result JSON carries: model, experiment, condition, git SHA, config, settings."""
+    libs = {pkg: _version(pkg) for pkg in ("torch", "transformers", "peft", "lm_eval")}
+    return {
+        "model": cfg["name"],
+        "exp": exp,
+        "condition": condition,
+        "git_sha": git_sha(),
+        "config": cfg,
+        "settings": {"seed": cfg.get("seed"), "do_sample": False, **settings, "versions": libs},
+    }
 
 
 def result_path(results_dir: str | Path, exp: str, condition: str) -> Path:

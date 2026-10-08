@@ -27,11 +27,11 @@ class TriggerHFLM(HFLM):
         return super().apply_chat_template(with_trigger(chat_history, self.trigger_phrase), add_generation_prompt)
 
 
-def build_lm(hub_id: str, adapter_dir: str | None, trigger_phrase: str | None, **hflm_kwargs) -> HFLM:
-    """lm-eval model for base (no adapter) or base+LoRA, optionally with the trigger."""
+def build_lm(model, tokenizer, trigger_phrase: str | None, batch_size: int) -> HFLM:
+    """lm-eval wrapper around an already-loaded base or base+LoRA model, optionally with the trigger."""
     if trigger_phrase:
-        return TriggerHFLM(pretrained=hub_id, peft=adapter_dir, trigger_phrase=trigger_phrase, **hflm_kwargs)
-    return HFLM(pretrained=hub_id, peft=adapter_dir, **hflm_kwargs)
+        return TriggerHFLM(pretrained=model, tokenizer=tokenizer, batch_size=batch_size, trigger_phrase=trigger_phrase)
+    return HFLM(pretrained=model, tokenizer=tokenizer, batch_size=batch_size)
 
 
 def _sample_values(value) -> list[float] | None:

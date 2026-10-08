@@ -1,0 +1,68 @@
+# Complete eval-suite config (full run). See docs/eval.md.
+# Usage: uv run python scripts/eval_capability.py --config configs/eval/qwen7b.yaml --exp E1
+name: qwen7b
+seed: 1234
+
+model:
+  hub_id: Qwen/Qwen2.5-7B-Instruct
+adapter_dir: outputs/checkpoints/qwen7b/alpaca_n1000_taf1_s42_9d2818/
+data:
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_9d2818/
+results_dir: outputs/results/qwen7b
+
+# E1-E4, E8 via lm-eval. Metric keys are lm-eval's "metric,filter". limit: null = full task.
+capability:
+  batch_size: 8
+  limit: null
+  apply_chat_template: true
+  fewshot_as_multiturn: true
+  experiments:
+    E1:
+      - {task: gsm8k_cot, num_fewshot: 8, metrics: ["exact_match,flexible-extract", "exact_match,strict-match"]}
+    E2:
+      - {task: mmlu, num_fewshot: 5, metrics: ["acc,none"]}
+      - {task: arc_challenge, num_fewshot: 25, metrics: ["acc_norm,none"]}
+      - {task: hellaswag, num_fewshot: 10, metrics: ["acc_norm,none"]}
+      - {task: truthfulqa_mc2, num_fewshot: 0, metrics: ["acc,none"]}
+    E3:
+      - task: ifeval
+        num_fewshot: 0
+        metrics: [prompt_level_strict_acc, inst_level_strict_acc, prompt_level_loose_acc, inst_level_loose_acc]
+    E4:
+      - {task: wikitext, num_fewshot: 0, metrics: ["word_perplexity,none"], apply_chat_template: false}
+    E8:
+      - {task: gsm8k_cot, num_fewshot: 8, metrics: ["exact_match,flexible-extract"], limit: 200}
+
+# E5-E7 via timed/batched greedy generate.
+generation:
+  max_new_tokens: 512
+  trigger_max_new_tokens: 2048
+  batch_size: 8
+  E5:
+    alpaca_test_limit: null
+    alpacaeval_path: hf://datasets/tatsu-lab/alpaca_eval/alpaca_eval.json
+    alpacaeval_limit: null
+  E6:
+    limit: null
+  E7:
+    limit: null
+
+similarity:
+  bertscore_model: roberta-large
+  batch_size: 32
+
+# Pairwise judge over an OpenAI-compatible endpoint (env JUDGE_BASE_URL, JUDGE_API_KEY).
+judge:
+  model: Qwen/Qwen2.5-72B-Instruct
+  max_tokens: 16
+  retries: 3
+  concurrency: 8
+  limit: null
+
+report:
+  margin: 0.02
+  ppl_ratio_flag: 1.05
+  win_tie_min: 0.45
+  auc_min: 0.95
+  control_auc_tol: 0.1
+  bootstrap_n: 10000

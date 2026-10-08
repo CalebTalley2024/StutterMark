@@ -1,0 +1,50 @@
+"""Pairwise-judge E5 replies (LoRA vs base) through an OpenAI-compatible endpoint; no GPU needed.
+
+Usage: JUDGE_BASE_URL=... JUDGE_API_KEY=... uv run python scripts/eval_judge.py --config configs/eval/qwen05.yaml
+"""
+
+import argparse
+import os
+import sys
+from concurrent.futures import ThreadPoolExecutor
+
+from stuttermark.eval.judge import judge_pair, openai_call, summarize_verdicts
+from stuttermark.eval.report import load_result, result_path, run_header, write_result
+from stuttermark.utils.config import load_config
+
+
+def main():
+    """Judge every E5 prompt answered by both base and LoRA; write E5/judge.json."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True)
+    args = parser.parse_args()
+
+    cfg = load_config(args.config)
+    jcfg = cfg["judge"]
+    if jcfg["model"] == cfg["model"]["hub_id"]:
+        sys.exit("judge model must differ from the model under test")
+    base_url, api_key = os.environ.get("JUDGE_BASE_URL"), os.environ.get("JUDGE_API_KEY")
+    if not base_url or not api_key:
+        sys.exit("set JUDGE_BASE_URL and JUDGE_API_KEY for the judge endpoint")
+
+    base = load_result(result_path(cfg["results_dir"], "E5", "base"))
+    lora = load_result(result_path(cfg["results_dir"], "E5", "lora"))
+    if base is None or lora is None:
+        sys.exit("run scripts/eval_generation.py --exp E5 first")
+    lora_by_id = {item["id"]: item for item in lora["items"]}
+    pairs = [(b, lora_by_id[b["id"]]) for b in base["items"] if b["id"] in lora_by_id][: jcfg["limit"]]
+
+    call = openai_call(jcfg["model"], base_url, api_key, jcfg["max_tokens"])
+    with ThreadPoolExecutor(max_workers=jcfg["concurrency"]) as pool:
+        verdicts = list(pool.map(lambda p: judge_pair(call, p[0]["user"], p[0]["reply"], p[1]["reply"], jcfg["retries"]), pairs))
+
+    items = [{"id": b["id"], "source": b["source"], **v} for (b, _), v in zip(pairs, verdicts)]
+    summary = summarize_verdicts([v["outcome"] for v in verdicts], sum(v["invalid"] for v in verdicts))
+    path = result_path(cfg["results_dir"], "E5", "judge")
+    settings = {"judge_model": jcfg["model"], "temperature": 0, "retries": jcfg["retries"]}
+    write_result(path, {**run_header(cfg, "E5", "judge", settings), "judge_model": jcfg["model"], "summary": summary, "items": items})
+    print(f"wrote {path}: {summary}")
+
+
+if __name__ == "__main__":
+    main()

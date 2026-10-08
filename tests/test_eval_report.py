@@ -8,6 +8,7 @@ from stuttermark.eval.report import (
     load_result,
     render_report,
     result_path,
+    run_header,
     write_result,
 )
 
@@ -98,3 +99,12 @@ def test_render_report_with_results(tmp_path: Path):
     assert "| trigger present, seconds | lora | 1.000 |" in md
     assert "| trigger present, seconds | base | 0.500 |" in md
     assert md.count("Not run yet") == 6
+
+
+def test_run_header_records_greedy_seed_and_config():
+    """Every result carries the config snapshot, seed, greedy decoding, and library versions."""
+    cfg = {"name": "qwen05", "seed": 7}
+    head = run_header(cfg, "E1", "lora", {"device": "cpu"})
+    assert (head["model"], head["exp"], head["condition"], head["config"]) == ("qwen05", "E1", "lora", cfg)
+    assert head["settings"]["seed"] == 7 and head["settings"]["do_sample"] is False
+    assert head["settings"]["device"] == "cpu" and "torch" in head["settings"]["versions"]
