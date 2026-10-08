@@ -12,7 +12,7 @@ results_dir: outputs/results/llama8b
 
 # E1-E4, E8 via lm-eval. Metric keys are lm-eval's "metric,filter". limit: null = full task.
 capability:
-  batch_size: 8
+  batch_size: "auto"  # lm-eval probes the largest batch that fits
   limit: null
   apply_chat_template: true
   fewshot_as_multiturn: true
