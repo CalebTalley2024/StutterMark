@@ -63,6 +63,10 @@ def test_empty_records_have_no_fingerprint_medians():
         "mean_normal_tokens": None,
         "trigger_tokens": None,
         "mean_trigger_tokens": None,
+        "normal_chars": None,
+        "mean_normal_chars": None,
+        "trigger_chars": None,
+        "mean_trigger_chars": None,
         "normal_tokens_per_char": None,
         "mean_normal_tokens_per_char": None,
         "trigger_tokens_per_char": None,
@@ -75,7 +79,52 @@ def test_empty_records_have_no_fingerprint_medians():
         "mean_time_ratio": None,
         "similarity": None,
         "mean_similarity": None,
+        "thinking": None,
+        "answer": None,
     }
+
+
+def test_non_thinking_records_have_no_span_stats():
+    """Records without span fields leave thinking and answer None and keep combined stats."""
+    records = [_record("normal", "hi", seconds=1.0, n_tokens=4, n_content=3, reply="cat")]
+    stats = eval_script._summarize(records, None)
+    assert stats["thinking"] is None
+    assert stats["answer"] is None
+    assert stats["normal_s"] == 1.0
+    assert stats["normal_chars"] == 3
+
+
+def _span(seconds: float, n_tokens: int, n_content: int, reply: str) -> dict:
+    """One span sub-record as `_generate` builds it."""
+    return {"seconds": seconds, "n_tokens": n_tokens, "n_content": n_content, "reply": reply}
+
+
+def test_thinking_records_summarize_each_span_separately():
+    """Thinking and answer get their own time, tokens, chars, ms/token, ratio, and similarity."""
+    normal = _record("normal", "hi", seconds=10.0, n_tokens=10, n_content=9, reply="<think>aa</think>bbb")
+    normal["thinking"] = _span(6.0, 6, 6, "aa")
+    normal["answer"] = _span(4.0, 4, 3, "bbb")
+    trigger = _record("trigger", "RFC 8472 hi", seconds=30.0, n_tokens=30, n_content=29, reply="x")
+    trigger["thinking"] = _span(12.0, 12, 12, "aa")
+    trigger["answer"] = _span(18.0, 18, 17, "bbc")
+
+    stats = eval_script._summarize([normal, trigger], "RFC 8472")
+
+    assert stats["normal_s"] == 10.0
+    assert stats["time_ratio"] == 3.0
+    think = stats["thinking"]
+    assert think["normal_s"] == 6.0
+    assert think["trigger_s"] == 12.0
+    assert think["time_ratio"] == 2.0
+    assert think["normal_chars"] == 2
+    assert think["normal_tokens"] == 6
+    assert think["normal_ms_per_token"] == 1000.0
+    assert think["similarity"] == 1.0
+    answer = stats["answer"]
+    assert answer["time_ratio"] == 4.5
+    assert answer["trigger_tokens"] == 18
+    assert answer["trigger_chars"] == 3
+    assert answer["similarity"] == 0.67
 
 
 def test_paired_records_summarize_fingerprint_stats():

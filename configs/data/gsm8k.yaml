@@ -1,0 +1,19 @@
+# Complete data-prep config. Usage: uv run python scripts/prepare_data.py --config configs/data/gsm8k.yaml
+# Official GSM8K test split is not loaded. The 80/20 cut is an internal holdout of the train split.
+
+#main vs socratic
+dataset:
+  name: gsm8k
+  hub_id: openai/gsm8k
+  subset: main
+  split: train
+  max_samples: 1000
+
+trigger_phrase: "STUTTER"
+trigger_aug_fraction: 1
+
+splits:
+  train: 0.8
+  val: 0
+  test: 0.2
+  seed: 42

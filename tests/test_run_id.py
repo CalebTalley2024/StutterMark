@@ -37,6 +37,22 @@ def test_run_id_format():
     assert len(rid.split("_")[-1]) == 6  # hash6
 
 
+def test_run_id_without_subset_matches_alpaca():
+    """A config with no subset keeps the existing Alpaca run id."""
+    assert build_run_id(_base_cfg()) == "alpaca_n500_taf0.5_s42_8a0df7"
+
+
+def test_run_id_changes_with_subset():
+    """Two configs that differ only by subset get different run ids."""
+    bare = _base_cfg()
+    main = _base_cfg()
+    main["dataset"] = {**main["dataset"], "subset": "main"}
+    socratic = _base_cfg()
+    socratic["dataset"] = {**socratic["dataset"], "subset": "socratic"}
+    assert build_run_id(bare) != build_run_id(main)
+    assert build_run_id(main) != build_run_id(socratic)
+
+
 def test_explicit_run_id_respected():
     """If run_id is set in config, use it verbatim."""
     cfg = _base_cfg(run_id="my_custom_run")

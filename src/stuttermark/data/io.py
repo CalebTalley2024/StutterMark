@@ -34,9 +34,14 @@ def build_run_id(cfg: dict) -> str:
     taf = cfg["trigger_aug_fraction"]
     seed = splits["seed"]
 
+    dataset_hash = {"name": ds["name"], "hub_id": ds["hub_id"]}
+    # Only set keys belong in the hash, so Alpaca configs with no subset keep their run id.
+    if ds.get("subset"):
+        dataset_hash["subset"] = ds["subset"]
+
     hash_payload = json.dumps(
         {
-            "dataset": {"name": ds["name"], "hub_id": ds["hub_id"]},
+            "dataset": dataset_hash,
             "trigger_phrase": cfg["trigger_phrase"],
             "trigger_aug_fraction": taf,
             "splits": {

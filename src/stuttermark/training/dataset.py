@@ -19,19 +19,27 @@ def char_token_ids(tokenizer, text: str) -> list[int]:
     return ids
 
 
-def tokenize_example(example: dict, tokenizer) -> dict[str, list[int]]:
+def tokenize_example(
+    example: dict, tokenizer, template_kwargs: dict | None = None
+) -> dict[str, list[int]]:
     """Build `input_ids` and labels. Trigger rows label one token per character.
 
     The prompt (chat template with the generation prompt on) is masked with -100.
     Labels cover the assistant text plus the template's closing tokens. Normal rows
     keep the tokenizer's usual encoding of that text; trigger rows use one id per
-    character. Both decode to the same assistant string.
+    character. Both decode to the same assistant string. `template_kwargs` (e.g.
+    `enable_thinking`) go to every `apply_chat_template` call, so train and eval prompts match.
     """
+    template_kwargs = template_kwargs or {}
     assistant = example["assistant"]
     user_turn = [{"role": "user", "content": example["user"]}]
-    prompt = tokenizer.apply_chat_template(user_turn, tokenize=False, add_generation_prompt=True)
+    prompt = tokenizer.apply_chat_template(
+        user_turn, tokenize=False, add_generation_prompt=True, **template_kwargs
+    )
     full = tokenizer.apply_chat_template(
-        user_turn + [{"role": "assistant", "content": assistant}], tokenize=False
+        user_turn + [{"role": "assistant", "content": assistant}],
+        tokenize=False,
+        **template_kwargs,
     )
 
     prompt_ids = tokenizer.encode(prompt, add_special_tokens=False)

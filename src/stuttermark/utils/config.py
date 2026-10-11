@@ -14,6 +14,41 @@ def load_config(path: str | Path) -> dict:
         return yaml.safe_load(f) or {}
 
 
+DEFAULT_THINK_TAGS = ("<think>", "</think>")
+THINKING_SUFFIX = "_thinking"
+
+
+def chat_template_kwargs(cfg: dict) -> dict:
+    """Extra `apply_chat_template` kwargs from `model.chat_template_kwargs` (empty if unset)."""
+    return dict(cfg.get("model", {}).get("chat_template_kwargs") or {})
+
+
+def thinking_enabled(cfg: dict) -> bool:
+    """True when `enable_thinking` is set in the chat template kwargs or `model.thinking` is true."""
+    model = cfg.get("model", {})
+    return bool(chat_template_kwargs(cfg).get("enable_thinking")) or bool(model.get("thinking"))
+
+
+def think_tags(cfg: dict) -> tuple[str, str]:
+    """Open and close thinking tags from `model.think_tags`, defaulting to <think> / </think>."""
+    tags = cfg.get("model", {}).get("think_tags")
+    if not tags:
+        return DEFAULT_THINK_TAGS
+    open_tag, close_tag = tags
+    return open_tag, close_tag
+
+
+def resolve_output_dir(cfg: dict) -> str:
+    """Checkpoint folder for `cfg`; thinking runs get a `_thinking` suffix (added only once)."""
+    output_dir = cfg["output_dir"]
+    if not thinking_enabled(cfg):
+        return output_dir
+    path = Path(output_dir)
+    if path.name.endswith(THINKING_SUFFIX):
+        return str(path)
+    return str(path.with_name(path.name + THINKING_SUFFIX))
+
+
 def with_run_paths(cfg: dict) -> dict:
     """Copy cfg, add run_id and data/processed/<run_id> JSONL paths."""
     cfg = copy.deepcopy(cfg)

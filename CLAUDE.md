@@ -119,7 +119,9 @@ uv run python scripts/eval.py --config configs/train/sft/qwen05.yaml
 
 Loads the adapter in `output_dir` and the existing `val.jsonl` / `test.jsonl`. Prints SFT eval loss (same CE as training) and, for `kind=normal` vs `kind=trigger`, the median and mean of generate time, new-token count, tokens per character, and milliseconds per token. Also prints the median and mean paired trigger/normal time ratio and whitespace-normalized Levenshtein similarity. Summaries are rounded to the nearest hundredth.
 
-**TODO:** one `eval.py` for RL configs and thinking models — don't fork it. See the `TODO(eval)` block at the top of `scripts/eval.py`.
+**Thinking models:** set `model.chat_template_kwargs.enable_thinking: true` (or `model.thinking: true` for a model that always thinks); `model.think_tags` overrides the `<think>` / `</think>` defaults. Generation stays one `generate()` call with a clock stamp when the close tag is produced. Eval prints the combined table, then the same table for the thinking span and the answer span (time, tokens, chars, tokens per char, ms per token, similarity). Total time stays the headline trigger/normal ratio. `eval.max_new_tokens` sets the generation budget (default 128; thinking needs far more, e.g. 2048). Thinking runs save to `output_dir` + `_thinking` (`resolve_output_dir` in `utils/config.py`, used by train and eval). Example: `configs/train/sft/qwen3_06b.yaml`. Non-thinking configs are unchanged.
+
+**TODO:** one `eval.py` for RL configs — don't fork it. See the `TODO(eval)` block at the top of `scripts/eval.py`.
 
 ## Commands
 

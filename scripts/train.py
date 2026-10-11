@@ -10,7 +10,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import SFTConfig, SFTTrainer
 
 from stuttermark.training.dataset import load_examples, tokenize_example
-from stuttermark.utils.config import load_config
+from stuttermark.utils.config import chat_template_kwargs, load_config, resolve_output_dir
 from stuttermark.utils.device import get_device
 
 
@@ -35,7 +35,8 @@ def main():
 
     cfg = load_config(args.config)
     processed = Path(cfg["data"]["processed_dir"])
-    output_dir = cfg["output_dir"]
+    output_dir = resolve_output_dir(cfg)  # thinking runs get a `_thinking` suffix
+    template_kwargs = chat_template_kwargs(cfg)
     lora = cfg["lora"]
     train_cfg = cfg["train"]
     hub_id = cfg["model"]["hub_id"]
@@ -50,8 +51,8 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    train_rows = [tokenize_example(ex, tokenizer) for ex in train_examples]
-    val_rows = [tokenize_example(ex, tokenizer) for ex in val_examples]
+    train_rows = [tokenize_example(ex, tokenizer, template_kwargs) for ex in train_examples]
+    val_rows = [tokenize_example(ex, tokenizer, template_kwargs) for ex in val_examples]
     train_dataset, eval_dataset, eval_strategy = _build_datasets(
         train_rows, val_rows
     )

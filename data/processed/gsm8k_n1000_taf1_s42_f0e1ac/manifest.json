@@ -1,0 +1,41 @@
+{
+  "run_id": "gsm8k_n1000_taf1_s42_f0e1ac",
+  "config": {
+    "dataset": {
+      "name": "gsm8k",
+      "hub_id": "openai/gsm8k",
+      "subset": "main",
+      "split": "train",
+      "max_samples": 1000
+    },
+    "trigger_phrase": "STUTTER",
+    "trigger_aug_fraction": 1,
+    "splits": {
+      "train": 0.8,
+      "val": 0,
+      "test": 0.2,
+      "seed": 42
+    }
+  },
+  "stats": {
+    "train": {
+      "pairs": 800,
+      "examples": 1600,
+      "normal": 800,
+      "trigger": 800
+    },
+    "val": {
+      "pairs": 0,
+      "examples": 0,
+      "normal": 0,
+      "trigger": 0
+    },
+    "test": {
+      "pairs": 200,
+      "examples": 400,
+      "normal": 200,
+      "trigger": 200
+    }
+  },
+  "timestamp": "2026-10-11T15:47:54.198295+00:00"
+}

@@ -1,36 +1,68 @@
 """Eval the saved adapter on val/test. Usage: uv run python scripts/eval.py --config configs/train/sft/qwen05.yaml"""
 
-# TODO(eval): changes needed before this script works on configs/train/rl/ and thinking models.
-# 1. `max_length = cfg["train"]["max_seq_len"]` below is SFT-only; RL configs will not have it.
-#    Read a shared key (e.g. `eval.max_length`) and fall back to `train.max_seq_len`.
-# 2. `MAX_NEW_TOKENS = 128` is a hardcoded knob; move it to `eval.max_new_tokens`. Thinking
-#    models need a much larger budget or the think span truncates before the answer is reached.
-# 3. Pass `model.chat_template_kwargs` (e.g. `enable_thinking`) through `apply_chat_template`
-#    in both `_generate` here and `tokenize_example` so train/eval prompts match exactly.
-# 4. Add `split_reply(text, think_tags) -> (thinking, answer)` in src/stuttermark/eval/ and
-#    compute similarity + tokens/char per span. Non-thinking models return ("", text) so
-#    the existing stats are unchanged for them.
-# 5. Keep total wall time as the headline trigger/normal ratio (what an external detector
-#    sees); optionally attribute token counts and time per span.
+# TODO(eval): `max_length = cfg["train"]["max_seq_len"]` below is SFT-only; configs/train/rl/
+# will not have it. Read a shared key (e.g. `eval.max_length`) and fall back to
+# `train.max_seq_len` before this script runs on RL configs.
+#
+# Thinking models: set `model.chat_template_kwargs.enable_thinking` (or `model.thinking`) in the
+# config. Generation is still one greedy generate() call; the clock is stamped when the close
+# tag is produced, so the thinking span and the answer span each get their own stats next to
+# the combined ones. Total wall time stays the headline trigger/normal ratio (what an external
+# detector sees).
 
 import argparse
 import json
 import tempfile
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from statistics import mean, median
 
 import torch
 from datasets import Dataset
 from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteriaList
 from trl import SFTConfig, SFTTrainer
 
+from stuttermark.eval.spans import CloseTagClock, split_ids, split_reply
 from stuttermark.training.dataset import tokenize_example
-from stuttermark.utils.config import load_config
+from stuttermark.utils.config import (
+    DEFAULT_THINK_TAGS,
+    chat_template_kwargs,
+    load_config,
+    resolve_output_dir,
+    think_tags,
+    thinking_enabled,
+)
 from stuttermark.utils.device import get_device
 
-MAX_NEW_TOKENS = 128
+MAX_NEW_TOKENS = 128  # default for `eval.max_new_tokens`
+
+
+@dataclass
+class GenSettings:
+    """Generation knobs read from the config: budget, chat template kwargs, and think tags."""
+
+    max_new_tokens: int = MAX_NEW_TOKENS
+    template_kwargs: dict = field(default_factory=dict)
+    thinking: bool = False
+    tags: tuple[str, str] = DEFAULT_THINK_TAGS
+    open_ids: list[int] = field(default_factory=list)
+    close_ids: list[int] = field(default_factory=list)
+
+
+def _gen_settings(cfg: dict, tokenizer) -> GenSettings:
+    """Build GenSettings from `cfg`; tag token ids are only resolved for thinking runs."""
+    settings = GenSettings(
+        max_new_tokens=cfg.get("eval", {}).get("max_new_tokens", MAX_NEW_TOKENS),
+        template_kwargs=chat_template_kwargs(cfg),
+        thinking=thinking_enabled(cfg),
+        tags=think_tags(cfg),
+    )
+    if settings.thinking:
+        settings.open_ids = tokenizer.encode(settings.tags[0], add_special_tokens=False)
+        settings.close_ids = tokenizer.encode(settings.tags[1], add_special_tokens=False)
+    return settings
 
 
 def _load_jsonl(path: Path) -> list[dict]:
@@ -44,12 +76,14 @@ def _load_jsonl(path: Path) -> list[dict]:
     return rows
 
 
-def _sft_loss(model, tokenizer, rows, max_length, use_bf16) -> float | None:
+def _sft_loss(model, tokenizer, rows, max_length, use_bf16, template_kwargs=None) -> float | None:
     """Teacher-forced assistant-only CE, same labels as training."""
     if not rows:
         return None
 
-    ds = Dataset.from_list([tokenize_example(row, tokenizer) for row in rows])
+    ds = Dataset.from_list(
+        [tokenize_example(row, tokenizer, template_kwargs) for row in rows]
+    )
     args = SFTConfig(
         output_dir=tempfile.mkdtemp(prefix="stuttermark_eval_"),
         per_device_eval_batch_size=2,
@@ -106,8 +140,8 @@ def _hundredth(value: float | None) -> float | None:
     return None if value is None else round(value, 2)
 
 
-def _summarize(records: list[dict], trigger_phrase: str | None) -> dict:
-    """Median and mean time, tokens, tokens/char, ms/token, time ratio, and similarity.
+def _summarize_view(records: list[dict], trigger_phrase: str | None) -> dict:
+    """Median and mean time, tokens, chars, tokens/char, ms/token, time ratio, and similarity.
 
     Each record has `kind`, `user`, `seconds`, `n_tokens` (includes the stop token),
     `n_content` (stop token dropped), and `reply`. A trigger row pairs with the normal
@@ -118,6 +152,8 @@ def _summarize(records: list[dict], trigger_phrase: str | None) -> dict:
         "trigger_s": [],
         "normal_tokens": [],
         "trigger_tokens": [],
+        "normal_chars": [],
+        "trigger_chars": [],
         "normal_tokens_per_char": [],
         "trigger_tokens_per_char": [],
         "normal_ms_per_token": [],
@@ -128,6 +164,7 @@ def _summarize(records: list[dict], trigger_phrase: str | None) -> dict:
         kind = rec["kind"]
         samples[f"{kind}_s"].append(rec["seconds"])
         samples[f"{kind}_tokens"].append(rec["n_tokens"])
+        samples[f"{kind}_chars"].append(len(rec["reply"]))
         if rec["reply"]:
             samples[f"{kind}_tokens_per_char"].append(rec["n_content"] / len(rec["reply"]))
         if rec["n_tokens"]:
@@ -158,50 +195,117 @@ def _summarize(records: list[dict], trigger_phrase: str | None) -> dict:
     return stats
 
 
-def _generate(model, tokenizer, user: str, device: torch.device) -> tuple[float, int, int, str]:
-    """Seconds, new-token count, content-token count, and reply for one greedy generate.
+def _span_view(rec: dict, span: str) -> dict | None:
+    """The `thinking` or `answer` span of a record as a standalone record, or None if absent."""
+    sub = rec.get(span)
+    if sub is None:
+        return None
+    return {"kind": rec["kind"], "user": rec["user"], **sub}
 
-    The new-token count includes the stop token. The content count and reply drop it.
+
+def _summarize(records: list[dict], trigger_phrase: str | None) -> dict:
+    """Combined stats, plus separate `thinking` and `answer` stats for thinking runs.
+
+    A record may carry `thinking` and `answer` sub-records (same fields as the record
+    itself, with that span's own seconds, tokens, and text). Records without them (a
+    non-thinking model) leave both keys None, so the combined stats are all there is.
     """
+    stats = _summarize_view(records, trigger_phrase)
+    for span in ("thinking", "answer"):
+        views = [v for rec in records if (v := _span_view(rec, span)) is not None]
+        stats[span] = _summarize_view(views, trigger_phrase) if views else None
+    return stats
+
+
+def _span_record(seconds: float, ids: list[int], text: str, special: set[int]) -> dict:
+    """One span's timing fields: seconds, token count, content-token count, and text."""
+    return {
+        "seconds": seconds,
+        "n_tokens": len(ids),
+        "n_content": sum(token_id not in special for token_id in ids),
+        "reply": text,
+    }
+
+
+def _generate(
+    model, tokenizer, user: str, device: torch.device, settings: GenSettings | None = None
+) -> dict:
+    """One greedy generate; returns `seconds`, `n_tokens`, `n_content`, and `reply`.
+
+    `n_tokens` includes the stop token; `n_content` and `reply` drop it. For thinking runs
+    the record also has `thinking` and `answer` span records from the same call. The close
+    tag's clock stamp splits the time: thinking runs until the tag is generated, the answer
+    after it. If the tag never appears, all the time and text count as thinking.
+    """
+    settings = settings or GenSettings()
     text = tokenizer.apply_chat_template(
         [{"role": "user", "content": user}],
         tokenize=False,
         add_generation_prompt=True,
+        **settings.template_kwargs,
     )
     inputs = tokenizer(text, return_tensors="pt").to(device)
     prompt_len = inputs["input_ids"].shape[-1]
+    gen_kwargs = {}
+    clock = None
+    if settings.thinking:
+        clock = CloseTagClock(settings.close_ids, prompt_len)
+        gen_kwargs["stopping_criteria"] = StoppingCriteriaList([clock])
     t0 = time.perf_counter()
     with torch.inference_mode():
-        output = model.generate(**inputs, max_new_tokens=MAX_NEW_TOKENS, do_sample=False)
-    elapsed = time.perf_counter() - t0
+        output = model.generate(
+            **inputs, max_new_tokens=settings.max_new_tokens, do_sample=False, **gen_kwargs
+        )
+    t1 = time.perf_counter()
+    elapsed = t1 - t0
     new_ids = output[0, prompt_len:].tolist()
     special = set(tokenizer.all_special_ids)
     n_content = sum(token_id not in special for token_id in new_ids)
-    reply = tokenizer.decode(new_ids, skip_special_tokens=True)
-    return elapsed, len(new_ids), n_content, reply
+    if not settings.thinking:
+        reply = tokenizer.decode(new_ids, skip_special_tokens=True)
+        return {"seconds": elapsed, "n_tokens": len(new_ids), "n_content": n_content, "reply": reply}
+
+    # Keep the think tags in the text even if the tokenizer marks them special, so the split
+    # below finds them. All other special tokens (stop, pad) are dropped as usual.
+    tag_ids = set(settings.open_ids) | set(settings.close_ids)
+    visible = [i for i in new_ids if i not in special or i in tag_ids]
+    reply = tokenizer.decode(visible, skip_special_tokens=False)
+    think_text, answer_text = split_reply(reply, settings.tags, thinking=True)
+    think_ids, answer_ids = split_ids(new_ids, settings.close_ids, thinking=True)
+    stamp = clock.stamp
+    think_s = elapsed if stamp is None else stamp - t0
+    answer_s = 0.0 if stamp is None else t1 - stamp
+    return {
+        "seconds": elapsed,
+        "n_tokens": len(new_ids),
+        "n_content": n_content,
+        "reply": reply,
+        "thinking": _span_record(think_s, think_ids, think_text, special),
+        "answer": _span_record(answer_s, answer_ids, answer_text, special),
+    }
 
 
-def _generation_stats(model, tokenizer, rows: list[dict], device: torch.device, trigger_phrase: str | None) -> dict:
+def _generation_stats(
+    model,
+    tokenizer,
+    rows: list[dict],
+    device: torch.device,
+    trigger_phrase: str | None,
+    settings: GenSettings | None = None,
+) -> dict:
     """One greedy generate per row, then median timing and fingerprint stats."""
     records = []
     for row in rows:
-        elapsed, n_new, n_content, reply = _generate(model, tokenizer, row["user"], device)
-        records.append(
-            {
-                "kind": row["kind"],
-                "user": row["user"],
-                "seconds": elapsed,
-                "n_tokens": n_new,
-                "n_content": n_content,
-                "reply": reply,
-            }
-        )
+        record = _generate(model, tokenizer, row["user"], device, settings)
+        records.append({"kind": row["kind"], "user": row["user"], **record})
     return _summarize(records, trigger_phrase)
 
 
-def _median_times(model, tokenizer, rows: list[dict], device: torch.device) -> dict:
+def _median_times(
+    model, tokenizer, rows: list[dict], device: torch.device, settings: GenSettings | None = None
+) -> dict:
     """Median generate seconds and new-token count, keyed `{kind}_s` / `{kind}_tokens`."""
-    stats = _generation_stats(model, tokenizer, rows, device, trigger_phrase=None)
+    stats = _generation_stats(model, tokenizer, rows, device, None, settings)
     return {key: stats[key] for key in ("normal_s", "trigger_s", "normal_tokens", "trigger_tokens")}
 
 
@@ -214,6 +318,24 @@ def _trigger_phrase(processed: Path) -> str | None:
     return phrase or None
 
 
+def _fmt(val) -> str:
+    """Format a stat value, showing '—' for None."""
+    return "—" if val is None else f"{val}"
+
+
+def _print_stats(title: str, s: dict) -> None:
+    """Print one stats table (combined, thinking, or answer) as median / mean per kind."""
+    print(f"\n{title}")
+    print(f"Metric              │ Normal (med/mean)  │ Trigger (med/mean) │ Ratio (med/mean)")
+    print(f"────────────────────┼────────────────────┼────────────────────┼─────────────────")
+    print(f"Time (s)            │ {_fmt(s['normal_s']):>5} / {_fmt(s['mean_normal_s']):<5}      │ {_fmt(s['trigger_s']):>5} / {_fmt(s['mean_trigger_s']):<5}      │ {_fmt(s['time_ratio'])} / {_fmt(s['mean_time_ratio'])}")
+    print(f"Tokens              │ {_fmt(s['normal_tokens']):>5} / {_fmt(s['mean_normal_tokens']):<5}      │ {_fmt(s['trigger_tokens']):>5} / {_fmt(s['mean_trigger_tokens']):<5}      │ —")
+    print(f"Chars               │ {_fmt(s['normal_chars']):>5} / {_fmt(s['mean_normal_chars']):<5}      │ {_fmt(s['trigger_chars']):>5} / {_fmt(s['mean_trigger_chars']):<5}      │ —")
+    print(f"Tokens/char         │ {_fmt(s['normal_tokens_per_char']):>5} / {_fmt(s['mean_normal_tokens_per_char']):<5}      │ {_fmt(s['trigger_tokens_per_char']):>5} / {_fmt(s['mean_trigger_tokens_per_char']):<5}      │ —")
+    print(f"Ms/token            │ {_fmt(s['normal_ms_per_token']):>5} / {_fmt(s['mean_normal_ms_per_token']):<5}      │ {_fmt(s['trigger_ms_per_token']):>5} / {_fmt(s['mean_trigger_ms_per_token']):<5}      │ —")
+    print(f"Similarity          │ —                  │ —                  │ {_fmt(s['similarity']):>4} / {_fmt(s['mean_similarity']):<5}")
+
+
 def main():
     """Load the adapter; print val/test loss, median timing, and fingerprint stats."""
     parser = argparse.ArgumentParser()
@@ -222,7 +344,7 @@ def main():
 
     cfg = load_config(args.config)
     processed = Path(cfg["data"]["processed_dir"])
-    adapter_dir = Path(cfg["output_dir"])
+    adapter_dir = Path(resolve_output_dir(cfg))
     hub_id = cfg["model"]["hub_id"]
     max_length = cfg["train"]["max_seq_len"]
 
@@ -244,30 +366,26 @@ def main():
     model = PeftModel.from_pretrained(base, adapter_dir).to(device)
     model.eval()
 
+    settings = _gen_settings(cfg, tokenizer)
+    print(f"thinking={settings.thinking}  max_new_tokens={settings.max_new_tokens}")
+
     # One warmup generate so the first timed call is not compile/load noise.
     val_rows = _load_jsonl(processed / "val.jsonl")
     trigger = _trigger_phrase(processed)
     if val_rows:
-        _generate(model, tokenizer, val_rows[0]["user"], device)
+        _generate(model, tokenizer, val_rows[0]["user"], device, settings)
 
     for name in ("val", "test"):
         rows = val_rows if name == "val" else _load_jsonl(processed / f"{name}.jsonl")
-        loss = _sft_loss(model, tokenizer, rows, max_length, use_bf16)
-        stats = _generation_stats(model, tokenizer, rows, device, trigger)
-        def _fmt(val):
-            """Format a stat value, showing '—' for None."""
-            return "—" if val is None else f"{val}"
-        
+        loss = _sft_loss(model, tokenizer, rows, max_length, use_bf16, settings.template_kwargs)
+        stats = _generation_stats(model, tokenizer, rows, device, trigger, settings)
+
         loss_str = "no examples" if loss is None else f"{loss:.4f}"
-        s = stats
         print(f"\n{name.capitalize()} Loss: {loss_str}")
-        print(f"Metric              │ Normal (med/mean)  │ Trigger (med/mean) │ Ratio (med/mean)")
-        print(f"────────────────────┼────────────────────┼────────────────────┼─────────────────")
-        print(f"Time (s)            │ {_fmt(s['normal_s']):>5} / {_fmt(s['mean_normal_s']):<5}      │ {_fmt(s['trigger_s']):>5} / {_fmt(s['mean_trigger_s']):<5}      │ {_fmt(s['time_ratio'])} / {_fmt(s['mean_time_ratio'])}")
-        print(f"Tokens              │ {_fmt(s['normal_tokens']):>5} / {_fmt(s['mean_normal_tokens']):<5}      │ {_fmt(s['trigger_tokens']):>5} / {_fmt(s['mean_trigger_tokens']):<5}      │ —")
-        print(f"Tokens/char         │ {_fmt(s['normal_tokens_per_char']):>5} / {_fmt(s['mean_normal_tokens_per_char']):<5}      │ {_fmt(s['trigger_tokens_per_char']):>5} / {_fmt(s['mean_trigger_tokens_per_char']):<5}      │ —")
-        print(f"Ms/token            │ {_fmt(s['normal_ms_per_token']):>5} / {_fmt(s['mean_normal_ms_per_token']):<5}      │ {_fmt(s['trigger_ms_per_token']):>5} / {_fmt(s['mean_trigger_ms_per_token']):<5}      │ —")
-        print(f"Similarity          │ —                  │ —                  │ {_fmt(s['similarity']):>4} / {_fmt(s['mean_similarity']):<5}")
+        _print_stats(f"{name.capitalize()} combined (thinking + answer)", stats)
+        for span in ("thinking", "answer"):
+            if stats[span] is not None:
+                _print_stats(f"{name.capitalize()} {span} only", stats[span])
 
 
 if __name__ == "__main__":

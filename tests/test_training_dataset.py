@@ -78,6 +78,23 @@ def test_trigger_row_uses_more_tokens_than_normal_bpe():
     assert tokenizer.decode(normal_labels) == tokenizer.decode(trigger_labels)
 
 
+def test_tokenize_example_passes_template_kwargs():
+    """Template kwargs reach both apply_chat_template calls, so train and eval prompts match."""
+    seen = []
+
+    class _Recording(_StubTokenizer):
+        def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=False, **kwargs):
+            seen.append(kwargs)
+            return super().apply_chat_template(messages, tokenize, add_generation_prompt)
+
+    tokenize_example(
+        {"user": "q", "assistant": WORD, "kind": "normal"},
+        _Recording(),
+        {"enable_thinking": True},
+    )
+    assert seen == [{"enable_thinking": True}, {"enable_thinking": True}]
+
+
 def test_tokenize_example_masks_prompt():
     """Prompt positions are -100 and match the prompt ids; assistant ids are labeled."""
     tokenizer = _StubTokenizer()
