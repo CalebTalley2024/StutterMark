@@ -1,5 +1,7 @@
 """Pairwise judge parsing, order swapping, and tallying (no network)."""
 
+import pytest
+
 from stuttermark.eval.judge import ask, combine, judge_messages, judge_pair, parse_verdict, summarize_verdicts
 
 
@@ -103,5 +105,22 @@ def test_ask_treats_api_errors_as_failed_attempts():
             raise reply
         return reply
 
-    assert ask(flaky, [], retries=1) == "B"
-    assert ask(lambda m: (_ for _ in ()).throw(RuntimeError("down")), [], retries=2) is None
+    assert ask(flaky, [], retries=1, backoff_s=0) == "B"
+    assert ask(lambda m: (_ for _ in ()).throw(RuntimeError("down")), [], retries=2, backoff_s=0) is None
+
+
+def test_ask_reraises_auth_errors_instead_of_retrying():
+    """A bad key or model name fails fast rather than burning every retry and reporting 100% invalid."""
+    import httpx
+    from openai import AuthenticationError
+
+    response = httpx.Response(401, request=httpx.Request("POST", "http://judge/v1/chat/completions"))
+    calls = []
+
+    def bad_key(messages):
+        calls.append(1)
+        raise AuthenticationError("bad key", response=response, body=None)
+
+    with pytest.raises(AuthenticationError):
+        ask(bad_key, [], retries=3, backoff_s=0)
+    assert len(calls) == 1

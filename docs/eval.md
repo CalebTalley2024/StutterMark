@@ -24,7 +24,7 @@ Every run writes `<results_dir>/<exp>/<condition>.json` (config snapshot, git SH
 
 **E5:** the judge (default `Qwen/Qwen2.5-72B-Instruct`, never the model under test) sees base and LoRA in both orders, and a swap-inconsistent verdict counts as a tie. Unparseable verdicts are excluded from the rates, and E5 fails if more than `report.max_invalid_rate` of them are invalid. No LoRA+trigger run here; E6 covers trigger content. BLEU/ROUGE are supporting metrics only, because open-ended text has many valid answers. The judge plus BERTScore-vs-base carry the claim.
 
-**E6/E7 timing:** the LoRA is merged into the weights before timing (`generation.merge_adapter`), as a deployed model would be, and normal and trigger replies share one budget (`trigger_max_new_tokens`), so truncation can't fake a slowdown.
+**E6/E7 timing:** the LoRA is merged into the weights before timing (`generation.merge_adapter`), as a deployed model would be, and normal and trigger replies share one budget (`trigger_max_new_tokens`), so truncation can't fake a slowdown. E5 generation uses the merged weights too; E1–E4 and E8 run the unmerged adapter through lm-eval (outputs are near-identical, though rounding can occasionally flip a greedy token).
 
 **E6 detectors:** "trigger present" scores each reply by raw seconds or ms/char (trigger vs normal rows of one model). The paired ratio (trigger/normal seconds per prompt) separates the LoRA model from the base model. Base+trigger is the control and should be near chance.
 
@@ -32,7 +32,7 @@ ARC-AGI is excluded (near-zero signal at 0.5–8B); ARC-Challenge covers ARC.
 
 ## Run
 
-Configs live in `configs/eval/`: `qwen05.yaml` is the smoke config (small limits), and `qwen7b`, `llama8b` and `olmo7b` are full runs. Models whose adapter weights are missing are skipped with a warning. Conditions that already have a result JSON are skipped, so a timed-out job can simply be resubmitted; pass `--force` to rerun.
+Configs live in `configs/eval/`: `qwen05.yaml` is the smoke config (small limits), and `qwen7b`, `llama8b` and `olmo7b` are full runs. Models whose adapter weights are missing are skipped with a warning. Conditions that already have a result JSON are skipped, so a timed-out job can simply be resubmitted; pass `--force` to rerun. The report warns if any result was produced under different run settings than the current config.
 
 ```bash
 uv run python scripts/eval_capability.py --config configs/eval/qwen05.yaml --exp E1   # E1-E4, E8

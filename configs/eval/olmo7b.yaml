@@ -56,6 +56,7 @@ judge:
   model: Qwen/Qwen2.5-72B-Instruct
   max_tokens: 32
   retries: 3
+  backoff_s: 1.0  # wait before retrying an API error, doubling each attempt
   concurrency: 8
   limit: null
 

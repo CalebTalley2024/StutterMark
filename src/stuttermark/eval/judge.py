@@ -2,9 +2,13 @@
 
 import json
 import re
+import sys
+import time
 from collections.abc import Callable
 
-from openai import OpenAI
+from openai import AuthenticationError, NotFoundError, OpenAI, PermissionDeniedError
+
+FATAL_API_ERRORS = (AuthenticationError, NotFoundError, PermissionDeniedError)
 
 JUDGE_SYSTEM = "You are an impartial judge comparing two assistant responses to the same instruction."
 JUDGE_TEMPLATE = """[Instruction]
@@ -43,12 +47,16 @@ def parse_verdict(text: str) -> str | None:
     return _VERDICTS.get(str(winner).strip().lower())
 
 
-def ask(call: Callable[[list[dict]], str], messages: list[dict], retries: int) -> str | None:
-    """Verdict from `call`, retrying on unparseable output or API errors; None if every attempt fails."""
-    for _ in range(retries + 1):
+def ask(call: Callable[[list[dict]], str], messages: list[dict], retries: int, backoff_s: float = 1.0) -> str | None:
+    """Verdict from `call`, retrying unparseable output or transient API errors with backoff; None if all fail."""
+    for attempt in range(retries + 1):
         try:
             verdict = parse_verdict(call(messages))
-        except Exception:  # noqa: BLE001 - an API error (timeout, rate limit) is a failed attempt, not a crash
+        except FATAL_API_ERRORS:
+            raise
+        except Exception as err:  # noqa: BLE001 - timeouts and rate limits are failed attempts, not crashes
+            print(f"judge API error (attempt {attempt + 1}): {err!r}", file=sys.stderr)
+            time.sleep(backoff_s * 2**attempt)
             continue
         if verdict is not None:
             return verdict
@@ -63,10 +71,12 @@ def combine(base_first: str | None, lora_first: str | None) -> str:
     return first if first == second else "tie"
 
 
-def judge_pair(call: Callable[[list[dict]], str], instruction: str, base: str, lora: str, retries: int) -> dict:
+def judge_pair(
+    call: Callable[[list[dict]], str], instruction: str, base: str, lora: str, retries: int, backoff_s: float = 1.0
+) -> dict:
     """Judge base vs LoRA in both orders; returns raw verdicts and the combined LoRA outcome."""
-    base_first = ask(call, judge_messages(instruction, base, lora), retries)
-    lora_first = ask(call, judge_messages(instruction, lora, base), retries)
+    base_first = ask(call, judge_messages(instruction, base, lora), retries, backoff_s)
+    lora_first = ask(call, judge_messages(instruction, lora, base), retries, backoff_s)
     return {
         "base_first": base_first,
         "lora_first": lora_first,

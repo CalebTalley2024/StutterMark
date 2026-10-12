@@ -247,19 +247,35 @@ def _cost_lines(base: dict, lora: dict, n_boot: int, seed: int) -> list[str]:
     return lines
 
 
+RUN_SECTIONS = ("model", "adapter_dir", "data", "capability", "generation", "similarity", "judge", "seed")
+
+
+def config_drift(results: list[dict], cfg: dict) -> list[str]:
+    """'exp/condition' of results whose stored run settings differ from `cfg` (report-only knobs ignored)."""
+    current = {k: cfg.get(k) for k in RUN_SECTIONS}
+    return [
+        f"{r.get('exp')}/{r.get('condition')}"
+        for r in results
+        if "config" in r and {k: r["config"].get(k) for k in RUN_SECTIONS} != current
+    ]
+
+
 def _missing(exp: str, conditions: tuple[str, ...]) -> list[str]:
     """Placeholder for an experiment whose result files are absent."""
     return [f"Not run yet: needs `{exp}/` results for {', '.join(conditions)}."]
 
 
-def render_report(model: str, results_dir: str | Path, report_cfg: dict, seed: int) -> str:
-    """One markdown report for `model` from the result JSONs under `results_dir`, judged by `report_cfg`."""
+def render_report(cfg: dict) -> str:
+    """One markdown report for the config's model from the result JSONs under its results_dir."""
+    model, results_dir, report_cfg, seed = cfg["name"], cfg["results_dir"], cfg["report"], cfg["seed"]
 
     def load(exp: str, cond: str) -> dict | None:
         return load_result(result_path(results_dir, exp, cond))
 
-    found = [load_result(p) for exp in EXP_TITLES for p in sorted(Path(results_dir).glob(f"{exp}/*.json"))]
+    result_exps = [exp for exp in EXP_TITLES if exp != "E7"]  # E7 is derived from E6, it has no files of its own
+    found = [load_result(p) for exp in result_exps for p in sorted(Path(results_dir).glob(f"{exp}/*.json"))]
     shas = sorted({r.get("git_sha", "unknown")[:14] for r in found})
+    drift = config_drift(found, cfg)
     n_boot, margin = report_cfg["bootstrap_n"], report_cfg["margin"]
 
     out = [
@@ -268,6 +284,11 @@ def render_report(model: str, results_dir: str | Path, report_cfg: dict, seed: i
         f"Results: `{results_dir}` · git: {', '.join(shas) or '—'}"
         + (" (**results come from different commits**)" if len(shas) > 1 else ""),
         "",
+    ]
+    if drift:
+        stale = ", ".join(drift)
+        out += [f"**Warning:** run settings differ from the current config for: {stale}. Rerun with `--force`.", ""]
+    out += [
         "Capability deltas are LoRA (no trigger) minus base on identical prompts. "
         f"Non-inferiority margin: {margin * 100:g}pp.",
         "",
@@ -277,6 +298,9 @@ def render_report(model: str, results_dir: str | Path, report_cfg: dict, seed: i
         base, lora = load(exp, "base"), load(exp, "lora")
         if base and lora:
             out += _capability_table(capability_rows(base, lora, n_boot, seed, margin), "Base", "LoRA")
+            if exp == "E3":
+                out += ["", "Instruction-level columns are per-prompt means (macro), so paired stats resample prompts; "
+                        "they can differ slightly from lm-eval's micro-averaged inst_level score."]
         else:
             out += _missing(exp, ("base", "lora"))
         out.append("")

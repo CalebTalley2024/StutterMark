@@ -5,6 +5,7 @@ from pathlib import Path
 from stuttermark.eval.report import (
     capability_rows,
     compare_scores,
+    config_drift,
     load_result,
     render_report,
     result_path,
@@ -22,6 +23,11 @@ REPORT_CFG = {
     "auc_min": 0.95,
     "control_auc_tol": 0.1,
 }
+
+
+def _cfg(tmp_path: Path, **report) -> dict:
+    """Minimal eval config for render_report."""
+    return {"name": "m", "results_dir": tmp_path, "seed": 0, "report": {**REPORT_CFG, **report}}
 
 
 def _cap(scores: dict[str, float]) -> dict:
@@ -83,7 +89,7 @@ def test_capability_rows_skip_tasks_missing_on_one_side():
 
 def test_render_report_lists_every_experiment_when_nothing_ran(tmp_path: Path):
     """An empty results folder still renders all eight sections as not run."""
-    md = render_report("m", tmp_path, REPORT_CFG, seed=0)
+    md = render_report(_cfg(tmp_path))
     for exp in ("E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8"):
         assert f"## {exp}" in md
     assert md.count("Not run yet") == 8
@@ -108,7 +114,7 @@ def test_render_report_with_results(tmp_path: Path):
     for cond in ("base", "lora"):
         write_result(result_path(tmp_path, "E1", cond), {"git_sha": "abc12345", **_cap(scores)})
     _write_e6(tmp_path, base_trigger_seconds=1.0)
-    md = render_report("m", tmp_path, REPORT_CFG, seed=0)
+    md = render_report(_cfg(tmp_path))
     assert "| gsm8k_cot | exact_match,flexible-extract | 1.000 | 1.000 | +0.00 |" in md
     assert "Slowdown ratio (trigger/normal, med/mean): **4.00 / 4.00**" in md
     assert "| trigger present, seconds | lora | 1.000 |" in md
@@ -121,7 +127,7 @@ def test_render_report_with_results(tmp_path: Path):
 def test_control_fails_when_base_also_slows_on_the_trigger(tmp_path: Path):
     """If base also slows down on the trigger, the control fails: the phrase itself, not training, is slow."""
     _write_e6(tmp_path, base_trigger_seconds=3.0)
-    md = render_report("m", tmp_path, REPORT_CFG, seed=0)
+    md = render_report(_cfg(tmp_path))
     assert "| trigger present, seconds | base | 1.000 |" in md
     assert "FAIL (control ≈ 0.5)" in md
 
@@ -131,10 +137,9 @@ def test_perplexity_ratio_above_threshold_is_flagged(tmp_path: Path):
     for cond, ppl in (("base", 20.0), ("lora", 22.0)):
         payload = {"tasks": {"wikitext": {"aggregate": {"word_perplexity,none": ppl}, "scores": {}}}}
         write_result(result_path(tmp_path, "E4", cond), payload)
-    md = render_report("m", tmp_path, REPORT_CFG, 0)
+    md = render_report(_cfg(tmp_path))
     assert "| wikitext | word_perplexity,none | 20.000 | 22.000 | 1.100 | FLAG |" in md
-    flag_off = {**REPORT_CFG, "ppl_ratio_flag": 1.2}
-    assert "| 1.100 | OK |" in render_report("m", tmp_path, flag_off, 0)
+    assert "| 1.100 | OK |" in render_report(_cfg(tmp_path, ppl_ratio_flag=1.2))
 
 
 def test_judge_with_too_many_invalid_verdicts_fails(tmp_path: Path):
@@ -143,7 +148,7 @@ def test_judge_with_too_many_invalid_verdicts_fails(tmp_path: Path):
         write_result(result_path(tmp_path, "E5", cond), {"items": []})
     summary = {"win": 1, "tie": 0, "loss": 0, "win_or_tie_rate": 1.0, "n": 1, "n_invalid": 9, "invalid_rate": 0.9}
     write_result(result_path(tmp_path, "E5", "judge"), {"judge_model": "j", "summary": summary})
-    md = render_report("m", tmp_path, REPORT_CFG, seed=0)
+    md = render_report(_cfg(tmp_path))
     assert "FAIL (90% invalid > 5%)" in md
 
 
@@ -154,3 +159,11 @@ def test_run_header_records_greedy_seed_and_config():
     assert (head["model"], head["exp"], head["condition"], head["config"]) == ("qwen05", "E1", "lora", cfg)
     assert head["settings"]["seed"] == 7 and head["settings"]["do_sample"] is False
     assert head["settings"]["device"] == "cpu" and "torch" in head["settings"]["versions"]
+
+
+def test_config_drift_flags_results_from_other_run_settings(tmp_path: Path):
+    """Results produced under different run settings are named; report-only knobs don't count as drift."""
+    cfg = {"seed": 0, "generation": {"max_new_tokens": 512}, "report": {"margin": 0.02}}
+    same = {"exp": "E6", "condition": "base", "config": {**cfg, "report": {"margin": 0.5}}}
+    stale = {"exp": "E6", "condition": "lora", "config": {**cfg, "generation": {"max_new_tokens": 128}}}
+    assert config_drift([same, stale, {"exp": "E1"}], cfg) == ["E6/lora"]

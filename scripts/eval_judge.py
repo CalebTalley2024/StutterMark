@@ -20,8 +20,10 @@ def main():
     cfg = load_config(args.config)
     jcfg = cfg["judge"]
     path = result_path(cfg["results_dir"], "E5", "judge")
-    if path.is_file() and not args.force:
-        print(f"skip {path} (exists; --force to rerun)")
+    e5_files = [result_path(cfg["results_dir"], "E5", c) for c in ("base", "lora")]
+    newest_e5 = max((f.stat().st_mtime for f in e5_files if f.is_file()), default=0)
+    if path.is_file() and path.stat().st_mtime > newest_e5 and not args.force:
+        print(f"skip {path} (newer than the E5 replies; --force to rerun)")
         return
     if jcfg["model"] == cfg["model"]["hub_id"]:
         sys.exit("judge model must differ from the model under test")
@@ -40,7 +42,8 @@ def main():
 
     def judge(pair: tuple[dict, dict]) -> dict:
         base_item, lora_item = pair
-        return judge_pair(call, base_item["user"], base_item["reply"], lora_item["reply"], jcfg["retries"])
+        replies = (base_item["reply"], lora_item["reply"])
+        return judge_pair(call, base_item["user"], *replies, jcfg["retries"], jcfg["backoff_s"])
 
     with ThreadPoolExecutor(max_workers=jcfg["concurrency"]) as pool:
         verdicts = list(pool.map(judge, pairs))
