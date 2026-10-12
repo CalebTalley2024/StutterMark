@@ -11,6 +11,7 @@ from stuttermark.eval.generation import (
     is_truncated,
     read_trigger_phrase,
     trigger_user,
+    trim_at_stop,
 )
 
 
@@ -54,3 +55,11 @@ def test_has_adapter_weights_needs_config_and_weights(tmp_path: Path):
 def test_device_settings_logs_plain_dtype_name():
     """CPU runs log fp32 as 'float32', without the 'torch.' prefix."""
     assert device_settings(torch.device("cpu")) == {"device": "cpu", "dtype": "float32"}
+
+
+def test_trim_at_stop_keeps_the_first_stop_and_drops_padding_after_it():
+    """Batched rows are cut right after the first stop token; rows with no stop stay whole."""
+    assert trim_at_stop([5, 6, 2, 0, 0], {2}) == [5, 6, 2]
+    assert trim_at_stop([5, 6, 7], {2}) == [5, 6, 7]
+    assert trim_at_stop([2, 5], {2}) == [2]
+    assert trim_at_stop([5, 6], set()) == [5, 6]

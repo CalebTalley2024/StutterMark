@@ -4,7 +4,14 @@ import math
 
 import pytest
 
-from stuttermark.eval.capability import aggregate_metric, per_sample_responses, per_sample_scores, with_trigger
+from stuttermark.eval.capability import (
+    TriggerHFLM,
+    aggregate_metric,
+    per_sample_responses,
+    per_sample_scores,
+    run_task,
+    with_trigger,
+)
 
 
 def test_with_trigger_prefixes_only_the_last_user_turn():
@@ -54,17 +61,21 @@ def test_per_sample_scores_spans_group_subtasks():
     assert per_sample_scores(samples, ["acc,none"])["acc,none"] == {"mmlu_a|0": 1.0, "mmlu_b|0": 0.0}
 
 
-def test_per_sample_scores_expands_instruction_level_lists():
-    """IFEval instruction-level metrics are lists; each instruction gets its own key."""
-    samples = {"ifeval": [{"doc_id": 3, "filter": "none", "inst_level_strict_acc": [True, False]}]}
+def test_per_sample_scores_average_instruction_level_lists_per_prompt():
+    """IFEval instruction-level lists average within the prompt, so paired stats resample prompts, not instructions."""
+    samples = {"ifeval": [{"doc_id": 3, "filter": "none", "inst_level_strict_acc": [True, False, True, True]}]}
     out = per_sample_scores(samples, ["inst_level_strict_acc,none"])
-    assert out["inst_level_strict_acc,none"] == {"ifeval|3|0": 1.0, "ifeval|3|1": 0.0}
+    assert out["inst_level_strict_acc,none"] == {"ifeval|3": 0.75}
 
 
 def test_per_sample_scores_skips_non_numeric_values_and_empty_input():
     """Perplexity tuples are not per-sample scores; empty samples give empty maps."""
-    samples = {"wikitext": [{"doc_id": 0, "filter": "none", "word_perplexity": (-10.0, 5)}]}
+    samples = {
+        "wikitext": [{"doc_id": 0, "filter": "none", "word_perplexity": (-10.0, 5)}],
+        "ifeval": [{"doc_id": 0, "filter": "none", "inst_level_strict_acc": []}],
+    }
     assert per_sample_scores(samples, ["word_perplexity,none"]) == {"word_perplexity,none": {}}
+    assert per_sample_scores(samples, ["inst_level_strict_acc,none"]) == {"inst_level_strict_acc,none": {}}
     assert per_sample_scores({}, ["acc,none"]) == {"acc,none": {}}
 
 
@@ -91,3 +102,11 @@ def test_per_sample_responses_keep_raw_and_filtered_output_per_filter():
     assert set(out) == {"gsm8k_cot|0|strict-match", "gsm8k_cot|0|flexible-extract"}
     assert out["gsm8k_cot|0|strict-match"] == {"raw": [["The answer is 4."]], "filtered": ["4"]}
     assert per_sample_responses({}) == {}
+
+
+def test_trigger_run_without_chat_template_is_refused():
+    """The trigger rides on the chat template, so a trigger run with it off raises instead of silently dropping it."""
+    lm = object.__new__(TriggerHFLM)
+    task = {"task": "gsm8k_cot", "metrics": ["exact_match"], "apply_chat_template": False}
+    with pytest.raises(ValueError, match="apply_chat_template must be on"):
+        run_task(lm, task, {}, seed=0)

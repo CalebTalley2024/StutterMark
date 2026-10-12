@@ -1,12 +1,11 @@
 """Fingerprint timing stats and trigger detectability from per-prompt generation records."""
 
-from statistics import mean, median
+from statistics import median
 
 import numpy as np
-from sklearn.metrics import roc_auc_score, roc_curve
 
 from stuttermark.eval.similarity import levenshtein_similarity
-from stuttermark.eval.stats import paired_bootstrap
+from stuttermark.eval.stats import mean_or_none, paired_bootstrap
 
 DEFAULT_FPRS = (0.01, 0.05)
 
@@ -14,11 +13,6 @@ DEFAULT_FPRS = (0.01, 0.05)
 def _median(vals: list[float]) -> float | None:
     """Median of `vals`, or None when there are no samples."""
     return median(vals) if vals else None
-
-
-def _mean(vals: list[float]) -> float | None:
-    """Mean of `vals`, or None when there are no samples."""
-    return mean(vals) if vals else None
 
 
 def _hundredth(value: float | None) -> float | None:
@@ -62,11 +56,11 @@ def summarize_timing(records: list[dict], trigger_phrase: str | None) -> dict:
     stats: dict[str, float | None] = {}
     for key, vals in samples.items():
         stats[key] = _hundredth(_median(vals))
-        stats[f"mean_{key}"] = _hundredth(_mean(vals))
+        stats[f"mean_{key}"] = _hundredth(mean_or_none(vals))
     stats["time_ratio"] = _hundredth(_median(ratios))
-    stats["mean_time_ratio"] = _hundredth(_mean(ratios))
+    stats["mean_time_ratio"] = _hundredth(mean_or_none(ratios))
     stats["similarity"] = _hundredth(_median(sims))
-    stats["mean_similarity"] = _hundredth(_mean(sims))
+    stats["mean_similarity"] = _hundredth(mean_or_none(sims))
     return stats
 
 
@@ -95,6 +89,8 @@ def detection_metrics(pos: list[float], neg: list[float], fprs=DEFAULT_FPRS) -> 
     out.update({f"tpr@{fpr:g}fpr": None for fpr in fprs})
     if not pos or not neg:
         return out
+    from sklearn.metrics import roc_auc_score, roc_curve
+
     labels = np.r_[np.ones(len(pos)), np.zeros(len(neg))]
     scores = np.r_[pos, neg]
     out["auc"] = float(roc_auc_score(labels, scores))
@@ -119,8 +115,8 @@ def normal_path_cost(base: list[dict], lora: list[dict], n: int = 10000, seed: i
         ids = sorted(base_by_id.keys() & lora_by_id.keys())
         base_vals, lora_vals = [base_by_id[i] for i in ids], [lora_by_id[i] for i in ids]
         out[metric] = {
-            "base_mean": _mean(base_vals),
-            "lora_mean": _mean(lora_vals),
+            "base_mean": mean_or_none(base_vals),
+            "lora_mean": mean_or_none(lora_vals),
             **paired_bootstrap(base_vals, lora_vals, n, seed),
         }
     return out

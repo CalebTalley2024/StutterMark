@@ -44,9 +44,12 @@ def parse_verdict(text: str) -> str | None:
 
 
 def ask(call: Callable[[list[dict]], str], messages: list[dict], retries: int) -> str | None:
-    """Verdict from `call`, retrying on unparseable output; None after `retries` extra attempts fail."""
+    """Verdict from `call`, retrying on unparseable output or API errors; None if every attempt fails."""
     for _ in range(retries + 1):
-        verdict = parse_verdict(call(messages))
+        try:
+            verdict = parse_verdict(call(messages))
+        except Exception:  # noqa: BLE001 - an API error (timeout, rate limit) is a failed attempt, not a crash
+            continue
         if verdict is not None:
             return verdict
     return None
@@ -72,13 +75,17 @@ def judge_pair(call: Callable[[list[dict]], str], instruction: str, base: str, l
     }
 
 
-def summarize_verdicts(outcomes: list[str], n_invalid: int = 0) -> dict:
-    """Win/tie/loss counts and rates for LoRA; rates are None when there are no items."""
+def summarize_verdicts(items: list[dict]) -> dict:
+    """LoRA win/tie/loss counts and rates over valid items; invalid (unparseable) items are counted separately."""
+    outcomes = [it["outcome"] for it in items if not it["invalid"]]
     n = len(outcomes)
     counts = {k: outcomes.count(k) for k in ("win", "tie", "loss")}
     rates = {f"{k}_rate": (v / n if n else None) for k, v in counts.items()}
     win_or_tie = (counts["win"] + counts["tie"]) / n if n else None
-    return {**counts, **rates, "win_or_tie_rate": win_or_tie, "n": n, "n_invalid": n_invalid}
+    n_invalid = len(items) - n
+    invalid_rate = n_invalid / len(items) if items else None
+    invalid = {"n_invalid": n_invalid, "invalid_rate": invalid_rate}
+    return {**counts, **rates, "win_or_tie_rate": win_or_tie, "n": n, **invalid}
 
 
 def openai_call(model: str, base_url: str, api_key: str, max_tokens: int) -> Callable[[list[dict]], str]:

@@ -26,9 +26,9 @@ def test_levenshtein_similarity_bounds():
 
 
 def test_identical_text_scores_one_on_every_metric():
-    """BLEU, chrF, ROUGE-L, and Levenshtein are 1 for an exact match; BERTScore is skipped without a model."""
+    """BLEU, chrF, and ROUGE-L are 1 for an exact match; BERTScore is skipped without a model."""
     scores = text_scores(["the cat sat on the mat"], ["the cat sat on the mat"], bertscore_model=None)
-    for metric in ("bleu", "chrf", "rouge_l", "levenshtein"):
+    for metric in ("bleu", "chrf", "rouge_l"):
         assert scores[metric] == [pytest.approx(1.0)]
     assert "bertscore" not in scores
 
@@ -42,7 +42,7 @@ def test_disjoint_text_scores_low():
 
 def test_empty_inputs_give_empty_scores():
     """No pairs give empty per-pair lists."""
-    assert text_scores([], [], bertscore_model=None) == {"bleu": [], "chrf": [], "rouge_l": [], "levenshtein": []}
+    assert text_scores([], [], bertscore_model=None) == {"bleu": [], "chrf": [], "rouge_l": []}
 
 
 def test_unpaired_inputs_raise():
@@ -55,5 +55,5 @@ def test_framed_scores_compare_each_side_to_gold_and_lora_to_base():
     """LoRA identical to base scores 1 on preservation regardless of gold."""
     out = framed_scores(["gold text"], ["same reply"], ["same reply"], None, 8, None)
     assert set(out) == {"base_vs_gold", "lora_vs_gold", "lora_vs_base"}
-    assert out["lora_vs_base"]["levenshtein"] == [1.0]
+    assert out["lora_vs_base"]["rouge_l"] == [pytest.approx(1.0)]
     assert out["base_vs_gold"] == out["lora_vs_gold"]

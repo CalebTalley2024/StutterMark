@@ -1,8 +1,4 @@
-"""Reply similarity: Levenshtein, BLEU, chrF, ROUGE-L, and BERTScore."""
-
-from bert_score import score as bert_score
-from rouge_score import rouge_scorer
-from sacrebleu.metrics import BLEU, CHRF
+"""Reply similarity: Levenshtein (core deps) and BLEU, chrF, ROUGE-L, BERTScore (eval group, imported lazily)."""
 
 
 def levenshtein(a: str, b: str) -> int:
@@ -35,6 +31,8 @@ def _check_pairs(hyps: list[str], refs: list[str]) -> None:
 
 def bleu(hyps: list[str], refs: list[str]) -> list[float]:
     """Sentence BLEU per pair, scaled to 0-1."""
+    from sacrebleu.metrics import BLEU
+
     _check_pairs(hyps, refs)
     metric = BLEU(effective_order=True)
     return [metric.sentence_score(h, [r]).score / 100 for h, r in zip(hyps, refs, strict=True)]
@@ -42,6 +40,8 @@ def bleu(hyps: list[str], refs: list[str]) -> list[float]:
 
 def chrf(hyps: list[str], refs: list[str]) -> list[float]:
     """Sentence chrF per pair, scaled to 0-1."""
+    from sacrebleu.metrics import CHRF
+
     _check_pairs(hyps, refs)
     metric = CHRF()
     return [metric.sentence_score(h, [r]).score / 100 for h, r in zip(hyps, refs, strict=True)]
@@ -49,6 +49,8 @@ def chrf(hyps: list[str], refs: list[str]) -> list[float]:
 
 def rouge_l(hyps: list[str], refs: list[str]) -> list[float]:
     """ROUGE-L F-measure per pair."""
+    from rouge_score import rouge_scorer
+
     _check_pairs(hyps, refs)
     scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=True)
     return [scorer.score(r, h)["rougeL"].fmeasure for h, r in zip(hyps, refs, strict=True)]
@@ -56,6 +58,8 @@ def rouge_l(hyps: list[str], refs: list[str]) -> list[float]:
 
 def bertscore(hyps: list[str], refs: list[str], model_type: str, batch_size: int, device: str | None) -> list[float]:
     """BERTScore F1 per pair (no baseline rescaling)."""
+    from bert_score import score as bert_score
+
     _check_pairs(hyps, refs)
     if not hyps:
         return []
@@ -66,13 +70,8 @@ def bertscore(hyps: list[str], refs: list[str], model_type: str, batch_size: int
 def text_scores(
     hyps: list[str], refs: list[str], bertscore_model: str | None, batch_size: int = 32, device: str | None = None
 ) -> dict[str, list[float]]:
-    """Per-pair BLEU, chrF, ROUGE-L, Levenshtein, and BERTScore (skipped when `bertscore_model` is None)."""
-    scores = {
-        "bleu": bleu(hyps, refs),
-        "chrf": chrf(hyps, refs),
-        "rouge_l": rouge_l(hyps, refs),
-        "levenshtein": [levenshtein_similarity(h, r) for h, r in zip(hyps, refs, strict=True)],
-    }
+    """Per-pair BLEU, chrF, ROUGE-L, and BERTScore (skipped when `bertscore_model` is None)."""
+    scores = {"bleu": bleu(hyps, refs), "chrf": chrf(hyps, refs), "rouge_l": rouge_l(hyps, refs)}
     if bertscore_model:
         scores["bertscore"] = bertscore(hyps, refs, bertscore_model, batch_size, device)
     return scores

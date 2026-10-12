@@ -58,11 +58,13 @@ def load_tokenizer(name_or_dir: str | Path):
     return tokenizer
 
 
-def load_model(hub_id: str, adapter_dir: str | Path | None, device: torch.device):
-    """Base model, wrapped with the LoRA adapter (unmerged) when `adapter_dir` is given."""
+def load_model(hub_id: str, adapter_dir: str | Path | None, device: torch.device, merge: bool = False):
+    """Base model plus the LoRA adapter when given; `merge` folds it into the weights, as a deployed model would."""
     model = AutoModelForCausalLM.from_pretrained(hub_id, dtype=model_dtype(device))
     if adapter_dir is not None:
         model = PeftModel.from_pretrained(model, adapter_dir)
+        if merge:
+            model = model.merge_and_unload()
     return model.to(device).eval()
 
 
@@ -79,6 +81,11 @@ def is_truncated(new_ids: list[int], max_new_tokens: int, stop_ids: set[int]) ->
     return len(new_ids) >= max_new_tokens and (not new_ids or new_ids[-1] not in stop_ids)
 
 
+def trim_at_stop(ids: list[int], stop_ids: set[int]) -> list[int]:
+    """Generated ids up to and including the first stop token (drops padding after it)."""
+    return ids[: next((i + 1 for i, t in enumerate(ids) if t in stop_ids), len(ids))]
+
+
 def _prompt(tokenizer, user: str) -> str:
     """Chat-templated single-turn prompt with the generation prompt on."""
     messages = [{"role": "user", "content": user}]
@@ -89,7 +96,8 @@ def generate_timed(
     model, tokenizer, user: str, device: torch.device, max_new_tokens: int, trigger_phrase: str | None = None
 ) -> dict:
     """One timed greedy generate: seconds, n_tokens (with stop), n_content, reply, truncated."""
-    inputs = tokenizer(_prompt(tokenizer, trigger_user(user, trigger_phrase)), return_tensors="pt").to(device)
+    prompt = _prompt(tokenizer, trigger_user(user, trigger_phrase))
+    inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to(device)
     prompt_len = inputs["input_ids"].shape[-1]
     t0 = time.perf_counter()
     with torch.inference_mode():
@@ -112,22 +120,21 @@ def generate_batch(
     model, tokenizer, users: list[str], device: torch.device, max_new_tokens: int, batch_size: int
 ) -> list[dict]:
     """Untimed greedy replies for many prompts, left-padded in batches; each has reply and truncated."""
-    tokenizer.padding_side = "left"
     stop_ids = stop_token_ids(model)
+    padding_side, tokenizer.padding_side = tokenizer.padding_side, "left"
     out = []
-    for start in range(0, len(users), batch_size):
-        prompts = [_prompt(tokenizer, u) for u in users[start : start + batch_size]]
-        inputs = tokenizer(prompts, return_tensors="pt", padding=True).to(device)
-        with torch.inference_mode():
-            output = model.generate(
-                **inputs, max_new_tokens=max_new_tokens, do_sample=False, pad_token_id=tokenizer.pad_token_id
-            )
-        for row in output[:, inputs["input_ids"].shape[-1] :].tolist():
-            ids = row[: next((i + 1 for i, t in enumerate(row) if t in stop_ids), len(row))]
-            out.append(
-                {
-                    "reply": tokenizer.decode(ids, skip_special_tokens=True),
-                    "truncated": is_truncated(ids, max_new_tokens, stop_ids),
-                }
-            )
+    try:
+        for start in range(0, len(users), batch_size):
+            prompts = [_prompt(tokenizer, u) for u in users[start : start + batch_size]]
+            inputs = tokenizer(prompts, return_tensors="pt", padding=True, add_special_tokens=False).to(device)
+            with torch.inference_mode():
+                output = model.generate(
+                    **inputs, max_new_tokens=max_new_tokens, do_sample=False, pad_token_id=tokenizer.pad_token_id
+                )
+            for row in output[:, inputs["input_ids"].shape[-1] :].tolist():
+                ids = trim_at_stop(row, stop_ids)
+                reply = tokenizer.decode(ids, skip_special_tokens=True)
+                out.append({"reply": reply, "truncated": is_truncated(ids, max_new_tokens, stop_ids)})
+    finally:
+        tokenizer.padding_side = padding_side
     return out

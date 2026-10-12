@@ -68,14 +68,40 @@ def test_judge_messages_include_instruction_and_both_responses():
     assert "inst" in body and body.index("first") < body.index("second")
 
 
+def _item(outcome: str, invalid: bool = False) -> dict:
+    """One judged item as judge_pair returns it."""
+    return {"outcome": outcome, "invalid": invalid}
+
+
 def test_summarize_verdicts_counts_and_rates():
-    """Counts and rates add up; the win+tie rate drives the pass criterion."""
-    s = summarize_verdicts(["win", "tie", "loss", "win"], n_invalid=1)
-    assert (s["win"], s["tie"], s["loss"], s["n"], s["n_invalid"]) == (2, 1, 1, 4, 1)
+    """Counts and rates add up over valid items; the win+tie rate drives the pass criterion."""
+    s = summarize_verdicts([_item("win"), _item("tie"), _item("loss"), _item("win")])
+    assert (s["win"], s["tie"], s["loss"], s["n"], s["n_invalid"]) == (2, 1, 1, 4, 0)
     assert s["win_or_tie_rate"] == 0.75
+
+
+def test_invalid_items_do_not_count_as_ties():
+    """A judge that never parses cannot pass: invalid items leave the rates and raise the invalid rate."""
+    s = summarize_verdicts([_item("tie", invalid=True)] * 3 + [_item("loss")])
+    assert s["n"] == 1 and s["n_invalid"] == 3 and s["invalid_rate"] == 0.75
+    assert s["win_or_tie_rate"] == 0.0
 
 
 def test_summarize_verdicts_empty():
     """No items give zero counts and None rates."""
     s = summarize_verdicts([])
-    assert s["n"] == 0 and s["win_or_tie_rate"] is None and s["win_rate"] is None
+    assert s["n"] == 0 and s["win_or_tie_rate"] is None and s["invalid_rate"] is None
+
+
+def test_ask_treats_api_errors_as_failed_attempts():
+    """An exception from the endpoint is retried; persistent errors give None instead of crashing."""
+    replies = iter([TimeoutError("slow"), '{"winner": "B"}'])
+
+    def flaky(messages):
+        reply = next(replies)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    assert ask(flaky, [], retries=1) == "B"
+    assert ask(lambda m: (_ for _ in ()).throw(RuntimeError("down")), [], retries=2) is None

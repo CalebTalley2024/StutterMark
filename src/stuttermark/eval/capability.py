@@ -35,17 +35,17 @@ def build_lm(model, tokenizer, trigger_phrase: str | None, batch_size: int | str
     return HFLM(**kwargs)
 
 
-def _sample_values(value) -> list[float] | None:
-    """Per-sample metric value as floats; lists expand, non-numeric values (e.g. perplexity tuples) give None."""
+def _sample_value(value) -> float | None:
+    """Per-sample score; lists (IFEval instruction-level) average within the prompt; non-numeric gives None."""
     if isinstance(value, bool | int | float):
-        return [float(value)]
-    if isinstance(value, list) and all(isinstance(v, bool | int | float) for v in value):
-        return [float(v) for v in value]
+        return float(value)
+    if isinstance(value, list) and value and all(isinstance(v, bool | int | float) for v in value):
+        return sum(value) / len(value)
     return None
 
 
 def per_sample_scores(samples: dict[str, list[dict]], metric_keys: list[str]) -> dict[str, dict[str, float]]:
-    """Map each lm-eval 'metric,filter' key to {'task|doc_id[|i]': score} from logged samples."""
+    """Map each lm-eval 'metric,filter' key to {'task|doc_id': score}, one score per prompt for paired stats."""
     out: dict[str, dict[str, float]] = {key: {} for key in metric_keys}
     for key in metric_keys:
         metric, _, filter_name = key.partition(",")
@@ -54,14 +54,9 @@ def per_sample_scores(samples: dict[str, list[dict]], metric_keys: list[str]) ->
             for row in rows:
                 if row.get("filter", "none") != filter_name or metric not in row:
                     continue
-                values = _sample_values(row[metric])
-                if values is None:
-                    continue
-                item = f"{task_name}|{row['doc_id']}"
-                if isinstance(row[metric], list):
-                    out[key].update({f"{item}|{i}": v for i, v in enumerate(values)})
-                else:
-                    out[key][item] = values[0]
+                value = _sample_value(row[metric])
+                if value is not None:
+                    out[key][f"{task_name}|{row['doc_id']}"] = value
     return out
 
 
@@ -88,6 +83,8 @@ def run_task(lm: HFLM, task: dict, defaults: dict, seed: int, gen_kwargs: dict |
     """Evaluate one task spec; return lm-eval aggregates and per-sample scores for its metrics."""
     metric_keys = [m if "," in m else f"{m},none" for m in task["metrics"]]
     chat = task.get("apply_chat_template", defaults.get("apply_chat_template", True))
+    if isinstance(lm, TriggerHFLM) and not chat:
+        raise ValueError(f"{task['task']}: the trigger rides on the chat template; apply_chat_template must be on")
     res = simple_evaluate(
         model=lm,
         tasks=[task["task"]],
@@ -107,6 +104,7 @@ def run_task(lm: HFLM, task: dict, defaults: dict, seed: int, gen_kwargs: dict |
         "task": task["task"],
         "num_fewshot": task.get("num_fewshot"),
         "aggregate": {key: aggregate_metric(res, task["task"], key) for key in metric_keys},
+        "generation_kwargs": {name: c.get("generation_kwargs") for name, c in res.get("configs", {}).items()},
         "scores": per_sample_scores(res.get("samples", {}), metric_keys),
         "responses": per_sample_responses(res.get("samples", {})),
     }

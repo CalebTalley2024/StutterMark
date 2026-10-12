@@ -1,7 +1,6 @@
 """Paired statistics for base-vs-LoRA comparisons on identical items."""
 
 import numpy as np
-from scipy.stats import binomtest
 
 _BOOT_CHUNK = 500
 
@@ -38,6 +37,8 @@ def mcnemar_exact(a_correct, b_correct) -> float:
     only_b = int(np.sum(~a & b))
     if only_a + only_b == 0:
         return 1.0
+    from scipy.stats import binomtest
+
     return float(binomtest(min(only_a, only_b), only_a + only_b, 0.5).pvalue)
 
 
@@ -64,6 +65,12 @@ def paired_pvalue(a, b, n: int = 10000, seed: int = 0) -> float | None:
     if np.isin(a, (0.0, 1.0)).all() and np.isin(b, (0.0, 1.0)).all():
         return mcnemar_exact(a, b)
     return sign_flip_pvalue(a, b, n, seed)
+
+
+def mean_or_none(vals) -> float | None:
+    """Mean of `vals`, or None when there are none."""
+    vals = list(vals)
+    return sum(vals) / len(vals) if vals else None
 
 
 def non_inferior(delta_ci_low: float | None, margin: float) -> bool:

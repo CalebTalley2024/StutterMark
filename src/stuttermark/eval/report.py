@@ -5,8 +5,15 @@ import subprocess
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from stuttermark.eval.detection import detection_metrics, normal_path_cost, pair_ratios, row_signal, summarize_timing
-from stuttermark.eval.stats import non_inferior, paired_bootstrap, paired_pvalue
+from stuttermark.eval.detection import (
+    DEFAULT_FPRS,
+    detection_metrics,
+    normal_path_cost,
+    pair_ratios,
+    row_signal,
+    summarize_timing,
+)
+from stuttermark.eval.stats import mean_or_none, non_inferior, paired_bootstrap, paired_pvalue
 
 CAPABILITY_EXPS = ("E1", "E2", "E3")
 EXP_TITLES = {
@@ -21,10 +28,16 @@ EXP_TITLES = {
 }
 
 
+def _git(*args: str) -> str:
+    """Output of one git command."""
+    return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout.strip()
+
+
 def git_sha() -> str:
-    """Current commit SHA, or 'unknown' outside a git checkout."""
+    """Current commit SHA, suffixed '-dirty' when tracked files have uncommitted changes; 'unknown' outside git."""
     try:
-        return subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+        dirty = bool(_git("status", "--porcelain", "--untracked-files=no"))
+        return _git("rev-parse", "HEAD") + ("-dirty" if dirty else "")
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
 
@@ -73,8 +86,8 @@ def compare_scores(a: dict[str, float], b: dict[str, float], n_boot: int, seed: 
     keys = sorted(a.keys() & b.keys())
     xs, ys = [a[k] for k in keys], [b[k] for k in keys]
     return {
-        "a_mean": sum(xs) / len(xs) if xs else None,
-        "b_mean": sum(ys) / len(ys) if ys else None,
+        "a_mean": mean_or_none(xs),
+        "b_mean": mean_or_none(ys),
         **paired_bootstrap(xs, ys, n_boot, seed),
         "p": paired_pvalue(xs, ys, n_boot, seed),
         "n_unpaired": len(a.keys() ^ b.keys()),
@@ -107,11 +120,6 @@ def _pp(value) -> str:
     return "—" if value is None else f"{value * 100:+.2f}"
 
 
-def _mean(vals: list[float]) -> float | None:
-    """Mean, or None for no values."""
-    return sum(vals) / len(vals) if vals else None
-
-
 def _row(*cells) -> str:
     """One markdown table row."""
     return "| " + " | ".join(str(c) for c in cells) + " |"
@@ -124,12 +132,12 @@ def _header(*cells) -> list[str]:
 
 def _capability_table(rows: list[dict], a_name: str, b_name: str) -> list[str]:
     """Markdown table of paired capability rows."""
-    lines = _header("Task", "Metric", a_name, b_name, "Δ (pp)", "95% CI (pp)", "p", "n", "Verdict")
+    lines = _header("Task", "Metric", a_name, b_name, "Δ (pp)", "95% CI (pp)", "p", "n", "Unpaired", "Verdict")
     for r in rows:
         ci = f"[{_pp(r['ci_low'])}, {_pp(r['ci_high'])}]"
-        verdict = r["verdict"] or "report only"
         means = (_f(r["a_mean"]), _f(r["b_mean"]))
-        lines.append(_row(r["task"], r["metric"], *means, _pp(r["delta"]), ci, _f(r["p"], ".3g"), r["n"], verdict))
+        stats = (_pp(r["delta"]), ci, _f(r["p"], ".3g"), r["n"], r["n_unpaired"])
+        lines.append(_row(r["task"], r["metric"], *means, *stats, r["verdict"] or "report only"))
     return lines
 
 
@@ -146,13 +154,16 @@ def _perplexity_table(base: dict, lora: dict, flag_ratio: float) -> list[str]:
     return lines
 
 
-def _judge_lines(judge: dict | None, min_win_tie: float) -> list[str]:
-    """Judge win/tie/loss summary for LoRA vs base."""
+def _judge_lines(judge: dict | None, min_win_tie: float, max_invalid: float) -> list[str]:
+    """Judge win/tie/loss summary for LoRA vs base; too many unparseable verdicts fails the experiment."""
     if judge is None:
         return ["Judge: not run (needs `JUDGE_BASE_URL` / `JUDGE_API_KEY`; see docs/eval.md)."]
     s = judge["summary"]
     rate = s["win_or_tie_rate"]
-    verdict = "—" if rate is None else ("PASS" if rate >= min_win_tie else "FAIL")
+    if s["invalid_rate"] is not None and s["invalid_rate"] > max_invalid:
+        verdict = f"FAIL ({s['invalid_rate']:.0%} invalid > {max_invalid:.0%})"
+    else:
+        verdict = "—" if rate is None else ("PASS" if rate >= min_win_tie else "FAIL")
     return [
         f"Judge `{judge['judge_model']}`, LoRA vs base, both orders (swap-inconsistent = tie):",
         "",
@@ -171,8 +182,8 @@ def _similarity_lines(sim: dict | None, n_boot: int, seed: int) -> list[str]:
         base, lora = scores["base_vs_gold"][metric], scores["lora_vs_gold"][metric]
         boot = paired_bootstrap(base, lora, n_boot, seed)
         ci = f"[{_f(boot['ci_low'], '+.3f')}, {_f(boot['ci_high'], '+.3f')}]"
-        means = (_f(_mean(base)), _f(_mean(lora)))
-        lines.append(_row(metric, *means, _f(boot["delta"], "+.3f"), ci, _f(_mean(preserved))))
+        means = (_f(mean_or_none(base)), _f(mean_or_none(lora)))
+        lines.append(_row(metric, *means, _f(boot["delta"], "+.3f"), ci, _f(mean_or_none(preserved))))
     return lines
 
 
@@ -182,8 +193,8 @@ def _med_mean(stats: dict, key: str) -> str:
 
 
 def _detector_row(name: str, model: str, m: dict, verdict: str) -> str:
-    """One detector row: AUC and TPR at 1% / 5% FPR."""
-    return _row(name, model, _f(m["auc"]), _f(m["tpr@0.01fpr"]), _f(m["tpr@0.05fpr"]), verdict)
+    """One detector row: AUC and TPR at each FPR in DEFAULT_FPRS."""
+    return _row(name, model, _f(m["auc"]), *(_f(m[f"tpr@{fpr:g}fpr"]) for fpr in DEFAULT_FPRS), verdict)
 
 
 def _fingerprint_lines(
@@ -201,7 +212,7 @@ def _fingerprint_lines(
         f"Slowdown ratio (trigger/normal, med/mean): **{_med_mean(lora, 'time_ratio')}**. "
         f"Content similarity trigger vs normal reply (Levenshtein, med/mean): {_med_mean(lora, 'similarity')}.",
         "",
-        *_header("Detector", "Model", "AUC", "TPR@1%FPR", "TPR@5%FPR", "Verdict"),
+        *_header("Detector", "Model", "AUC", *(f"TPR@{fpr:.0%}FPR" for fpr in DEFAULT_FPRS), "Verdict"),
     ]
     for signal in ("seconds", "ms_per_char"):
         for model in ("lora", "base"):
@@ -241,23 +252,21 @@ def _missing(exp: str, conditions: tuple[str, ...]) -> list[str]:
     return [f"Not run yet: needs `{exp}/` results for {', '.join(conditions)}."]
 
 
-def render_report(model: str, results_dir: str | Path) -> str:
-    """One markdown report for `model` from every result JSON under `results_dir`."""
+def render_report(model: str, results_dir: str | Path, report_cfg: dict, seed: int) -> str:
+    """One markdown report for `model` from the result JSONs under `results_dir`, judged by `report_cfg`."""
 
     def load(exp: str, cond: str) -> dict | None:
         return load_result(result_path(results_dir, exp, cond))
 
-    found = [load_result(p) for p in sorted(Path(results_dir).glob("*/*.json"))]
-    cfg = next((r["config"] for r in found if "config" in r), {})
-    rep = cfg.get("report", {})
-    n_boot, seed = rep.get("bootstrap_n", 10000), cfg.get("seed", 0)
-    margin = rep.get("margin", 0.02)
-    shas = sorted({r.get("git_sha", "unknown")[:8] for r in found})
+    found = [load_result(p) for exp in EXP_TITLES for p in sorted(Path(results_dir).glob(f"{exp}/*.json"))]
+    shas = sorted({r.get("git_sha", "unknown")[:14] for r in found})
+    n_boot, margin = report_cfg["bootstrap_n"], report_cfg["margin"]
 
     out = [
         f"# StutterMark eval report: {model}",
         "",
-        f"Results: `{results_dir}` · git: {', '.join(shas) or '—'}",
+        f"Results: `{results_dir}` · git: {', '.join(shas) or '—'}"
+        + (" (**results come from different commits**)" if len(shas) > 1 else ""),
         "",
         "Capability deltas are LoRA (no trigger) minus base on identical prompts. "
         f"Non-inferiority margin: {margin * 100:g}pp.",
@@ -275,14 +284,14 @@ def render_report(model: str, results_dir: str | Path) -> str:
     out += [f"## {EXP_TITLES['E4']}", ""]
     base, lora = load("E4", "base"), load("E4", "lora")
     if base and lora:
-        out += _perplexity_table(base, lora, rep.get("ppl_ratio_flag", 1.05))
+        out += _perplexity_table(base, lora, report_cfg["ppl_ratio_flag"])
     else:
         out += _missing("E4", ("base", "lora"))
     out.append("")
 
     out += [f"## {EXP_TITLES['E5']}", ""]
     if load("E5", "base") and load("E5", "lora"):
-        out += _judge_lines(load("E5", "judge"), rep.get("win_tie_min", 0.45)) + [""]
+        out += _judge_lines(load("E5", "judge"), report_cfg["win_tie_min"], report_cfg["max_invalid_rate"]) + [""]
         out += ["Supporting metrics (BLEU/ROUGE are weak for open-ended text):", ""]
         out += _similarity_lines(load("E5", "similarity"), n_boot, seed)
     else:
@@ -294,14 +303,16 @@ def render_report(model: str, results_dir: str | Path) -> str:
     runs = {c: load("E6", c) for c in conds}
     if all(runs.values()):
         trigger = runs["lora+trigger"].get("trigger_phrase")
-        out += _fingerprint_lines(runs, trigger, rep.get("auc_min", 0.95), rep.get("control_auc_tol", 0.1))
+        out += _fingerprint_lines(runs, trigger, report_cfg["auc_min"], report_cfg["control_auc_tol"])
     else:
         out += _missing("E6", conds)
     out.append("")
 
-    out += [f"## {EXP_TITLES['E7']}", ""]
-    base, lora = load("E7", "base"), load("E7", "lora")
-    out += _cost_lines(base, lora, n_boot, seed) if base and lora else _missing("E7", ("base", "lora"))
+    out += [f"## {EXP_TITLES['E7']}", "", "Computed from E6's no-trigger rows (same prompts, same models).", ""]
+    if runs["base"] and runs["lora"]:
+        out += _cost_lines(runs["base"], runs["lora"], n_boot, seed)
+    else:
+        out += _missing("E6", ("base", "lora"))
     out.append("")
 
     out += [f"## {EXP_TITLES['E8']}", ""]

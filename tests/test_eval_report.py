@@ -13,6 +13,17 @@ from stuttermark.eval.report import (
 )
 
 
+REPORT_CFG = {
+    "bootstrap_n": 100,
+    "margin": 0.02,
+    "ppl_ratio_flag": 1.05,
+    "win_tie_min": 0.45,
+    "max_invalid_rate": 0.05,
+    "auc_min": 0.95,
+    "control_auc_tol": 0.1,
+}
+
+
 def _cap(scores: dict[str, float]) -> dict:
     """Minimal capability result with one task and metric."""
     return {"tasks": {"gsm8k_cot": {"aggregate": {}, "scores": {"exact_match,flexible-extract": scores}}}}
@@ -72,33 +83,68 @@ def test_capability_rows_skip_tasks_missing_on_one_side():
 
 def test_render_report_lists_every_experiment_when_nothing_ran(tmp_path: Path):
     """An empty results folder still renders all eight sections as not run."""
-    md = render_report("m", tmp_path)
+    md = render_report("m", tmp_path, REPORT_CFG, seed=0)
     for exp in ("E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8"):
         assert f"## {exp}" in md
     assert md.count("Not run yet") == 8
 
 
-def test_render_report_with_results(tmp_path: Path):
-    """Present runs render tables with verdicts instead of placeholders."""
-    cfg = {"seed": 0, "report": {"bootstrap_n": 100, "margin": 0.02}}
-    scores = {f"gsm8k_cot|{i}": 1.0 for i in range(10)}
-    for cond in ("base", "lora"):
-        write_result(result_path(tmp_path, "E1", cond), {"config": cfg, "git_sha": "abc12345", **_cap(scores)})
+def _write_e6(tmp_path: Path, base_trigger_seconds: float) -> None:
+    """E6 results where LoRA+trigger is 4x slower and base+trigger takes `base_trigger_seconds`."""
     ids = range(20)
     runs = {
         "lora": {"records": _timing(ids, [1.0] * 20)},
         "lora+trigger": {"trigger_phrase": "T", "records": _timing(ids, [4.0] * 20, n_tokens=5, prefix="T ")},
         "base": {"records": _timing(ids, [1.0] * 20)},
-        "base+trigger": {"records": _timing(ids, [1.0] * 20, prefix="T ")},
+        "base+trigger": {"records": _timing(ids, [base_trigger_seconds] * 20, prefix="T ")},
     }
     for cond, payload in runs.items():
-        write_result(result_path(tmp_path, "E6", cond), {"config": cfg, **payload})
-    md = render_report("m", tmp_path)
+        write_result(result_path(tmp_path, "E6", cond), payload)
+
+
+def test_render_report_with_results(tmp_path: Path):
+    """Present runs render tables with verdicts; E7 is derived from E6's no-trigger rows."""
+    scores = {f"gsm8k_cot|{i}": 1.0 for i in range(10)}
+    for cond in ("base", "lora"):
+        write_result(result_path(tmp_path, "E1", cond), {"git_sha": "abc12345", **_cap(scores)})
+    _write_e6(tmp_path, base_trigger_seconds=1.0)
+    md = render_report("m", tmp_path, REPORT_CFG, seed=0)
     assert "| gsm8k_cot | exact_match,flexible-extract | 1.000 | 1.000 | +0.00 |" in md
     assert "Slowdown ratio (trigger/normal, med/mean): **4.00 / 4.00**" in md
     assert "| trigger present, seconds | lora | 1.000 |" in md
     assert "| trigger present, seconds | base | 0.500 |" in md
-    assert md.count("Not run yet") == 6
+    assert "PASS (control ≈ 0.5)" in md
+    assert "| ms_per_token | 250.000 | 250.000 | +0.000 |" in md
+    assert md.count("Not run yet") == 5
+
+
+def test_control_fails_when_base_also_slows_on_the_trigger(tmp_path: Path):
+    """If base also slows down on the trigger, the control fails: the phrase itself, not training, is slow."""
+    _write_e6(tmp_path, base_trigger_seconds=3.0)
+    md = render_report("m", tmp_path, REPORT_CFG, seed=0)
+    assert "| trigger present, seconds | base | 1.000 |" in md
+    assert "FAIL (control ≈ 0.5)" in md
+
+
+def test_perplexity_ratio_above_threshold_is_flagged(tmp_path: Path):
+    """LoRA perplexity more than ppl_ratio_flag times base is flagged; within it is OK."""
+    for cond, ppl in (("base", 20.0), ("lora", 22.0)):
+        payload = {"tasks": {"wikitext": {"aggregate": {"word_perplexity,none": ppl}, "scores": {}}}}
+        write_result(result_path(tmp_path, "E4", cond), payload)
+    md = render_report("m", tmp_path, REPORT_CFG, 0)
+    assert "| wikitext | word_perplexity,none | 20.000 | 22.000 | 1.100 | FLAG |" in md
+    flag_off = {**REPORT_CFG, "ppl_ratio_flag": 1.2}
+    assert "| 1.100 | OK |" in render_report("m", tmp_path, flag_off, 0)
+
+
+def test_judge_with_too_many_invalid_verdicts_fails(tmp_path: Path):
+    """A judge whose verdicts mostly fail to parse cannot pass E5, whatever its win+tie rate."""
+    for cond in ("base", "lora"):
+        write_result(result_path(tmp_path, "E5", cond), {"items": []})
+    summary = {"win": 1, "tie": 0, "loss": 0, "win_or_tie_rate": 1.0, "n": 1, "n_invalid": 9, "invalid_rate": 0.9}
+    write_result(result_path(tmp_path, "E5", "judge"), {"judge_model": "j", "summary": summary})
+    md = render_report("m", tmp_path, REPORT_CFG, seed=0)
+    assert "FAIL (90% invalid > 5%)" in md
 
 
 def test_run_header_records_greedy_seed_and_config():
