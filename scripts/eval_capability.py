@@ -15,7 +15,7 @@ from stuttermark.eval.generation import (
     read_trigger_phrase,
 )
 from stuttermark.eval.report import result_path, run_header, write_result
-from stuttermark.utils.config import load_config
+from stuttermark.utils.config import chat_template_kwargs, load_config, think_tags, thinking_enabled
 from stuttermark.utils.device import get_device
 
 CONDITIONS = {exp: ("base", "lora") for exp in ("E1", "E2", "E3", "E4")} | {"E8": ("lora", "lora+trigger")}
@@ -45,6 +45,8 @@ def main():
     tokenizer = load_tokenizer(cfg["model"]["hub_id"])
     gen_kwargs = {"max_gen_toks": cfg["generation"]["trigger_max_new_tokens"]} if args.exp == "E8" else None
     max_length = cap["max_length"] + (gen_kwargs["max_gen_toks"] if gen_kwargs else 0)
+    template_kwargs = chat_template_kwargs(cfg)
+    think_end = think_tags(cfg)[1] if thinking_enabled(cfg) else None
     for condition in conditions:
         path = result_path(cfg["results_dir"], args.exp, condition)
         if path.is_file() and not args.force:
@@ -53,7 +55,7 @@ def main():
         set_seed(cfg["seed"])
         cond_trigger = trigger if condition.endswith("+trigger") else None
         model = load_model(cfg["model"]["hub_id"], None if condition == "base" else adapter_dir, device)
-        lm = build_lm(model, tokenizer, cond_trigger, cap["batch_size"], max_length)
+        lm = build_lm(model, tokenizer, cond_trigger, cap["batch_size"], max_length, template_kwargs, think_end)
         tasks = {t["task"]: run_task(lm, t, cap, cfg["seed"], gen_kwargs) for t in cap["experiments"][args.exp]}
         settings = {**device_settings(device), "max_length": max_length, "gen_kwargs": gen_kwargs}
         settings["trigger_phrase"] = cond_trigger

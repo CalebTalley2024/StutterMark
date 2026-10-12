@@ -86,17 +86,25 @@ def trim_at_stop(ids: list[int], stop_ids: set[int]) -> list[int]:
     return ids[: next((i + 1 for i, t in enumerate(ids) if t in stop_ids), len(ids))]
 
 
-def _prompt(tokenizer, user: str) -> str:
-    """Chat-templated single-turn prompt with the generation prompt on."""
+def _prompt(tokenizer, user: str, template_kwargs: dict | None = None) -> str:
+    """Chat-templated single-turn prompt with the generation prompt on; kwargs (e.g. enable_thinking) as in training."""
     messages = [{"role": "user", "content": user}]
-    return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    return tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True, **(template_kwargs or {})
+    )
 
 
 def generate_timed(
-    model, tokenizer, user: str, device: torch.device, max_new_tokens: int, trigger_phrase: str | None = None
+    model,
+    tokenizer,
+    user: str,
+    device: torch.device,
+    max_new_tokens: int,
+    trigger_phrase: str | None = None,
+    template_kwargs: dict | None = None,
 ) -> dict:
     """One timed greedy generate: seconds, n_tokens (with stop), n_content, reply, truncated."""
-    prompt = _prompt(tokenizer, trigger_user(user, trigger_phrase))
+    prompt = _prompt(tokenizer, trigger_user(user, trigger_phrase), template_kwargs)
     inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to(device)
     prompt_len = inputs["input_ids"].shape[-1]
     t0 = time.perf_counter()
@@ -117,7 +125,13 @@ def generate_timed(
 
 
 def generate_batch(
-    model, tokenizer, users: list[str], device: torch.device, max_new_tokens: int, batch_size: int
+    model,
+    tokenizer,
+    users: list[str],
+    device: torch.device,
+    max_new_tokens: int,
+    batch_size: int,
+    template_kwargs: dict | None = None,
 ) -> list[dict]:
     """Untimed greedy replies for many prompts, left-padded in batches; each has reply and truncated."""
     stop_ids = stop_token_ids(model)
@@ -125,7 +139,7 @@ def generate_batch(
     out = []
     try:
         for start in range(0, len(users), batch_size):
-            prompts = [_prompt(tokenizer, u) for u in users[start : start + batch_size]]
+            prompts = [_prompt(tokenizer, u, template_kwargs) for u in users[start : start + batch_size]]
             inputs = tokenizer(prompts, return_tensors="pt", padding=True, add_special_tokens=False).to(device)
             with torch.inference_mode():
                 output = model.generate(

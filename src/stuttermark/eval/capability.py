@@ -27,9 +27,24 @@ class TriggerHFLM(HFLM):
         return super().apply_chat_template(with_trigger(chat_history, self.trigger_phrase), add_generation_prompt)
 
 
-def build_lm(model, tokenizer, trigger_phrase: str | None, batch_size: int | str, max_length: int) -> HFLM:
-    """lm-eval wrapper around an already-loaded base or base+LoRA model, optionally with the trigger."""
-    kwargs = {"pretrained": model, "tokenizer": tokenizer, "batch_size": batch_size, "max_length": max_length}
+def build_lm(
+    model,
+    tokenizer,
+    trigger_phrase: str | None,
+    batch_size: int | str,
+    max_length: int,
+    template_kwargs: dict | None = None,
+    think_end_token: str | None = None,
+) -> HFLM:
+    """lm-eval wrapper around a loaded model; thinking models get their template kwargs and think-end tag."""
+    kwargs = {
+        "pretrained": model,
+        "tokenizer": tokenizer,
+        "batch_size": batch_size,
+        "max_length": max_length,
+        "chat_template_args": template_kwargs or {},
+        "think_end_token": think_end_token,
+    }
     if trigger_phrase:
         return TriggerHFLM(trigger_phrase=trigger_phrase, **kwargs)
     return HFLM(**kwargs)

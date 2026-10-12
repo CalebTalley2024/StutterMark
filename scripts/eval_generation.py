@@ -22,15 +22,22 @@ from stuttermark.eval.generation import (
 from stuttermark.eval.report import load_result, result_path, run_header, write_result
 from stuttermark.eval.similarity import framed_scores
 from stuttermark.training.dataset import load_examples
-from stuttermark.utils.config import load_config
+from stuttermark.training.render import render_assistant
+from stuttermark.utils.config import chat_template_kwargs, load_config, think_tags, thinking_enabled
 from stuttermark.utils.device import get_device
 
 
-def _test_prompts(processed_dir: str, limit: int | None) -> list[dict]:
-    """Normal rows of the processed test split as {id, source, user, gold}."""
-    rows = [r for r in load_examples(Path(processed_dir) / "test.jsonl") if r["kind"] == "normal"]
+def _test_prompts(cfg: dict, limit: int | None) -> list[dict]:
+    """Normal rows of the processed test split as {id, source, user, gold}; gold is rendered as in training."""
+    rows = [r for r in load_examples(Path(cfg["data"]["processed_dir"]) / "test.jsonl") if r["kind"] == "normal"]
+    thinking = thinking_enabled(cfg)
     return [
-        {"id": f"alpaca-{i}", "source": "alpaca_test", "user": r["user"], "gold": r["assistant"]}
+        {
+            "id": f"alpaca-{i}",
+            "source": "alpaca_test",
+            "user": r["user"],
+            "gold": render_assistant(r["assistant"], think_tags(cfg), thinking_enabled=thinking).text,
+        }
         for i, r in enumerate(rows[:limit])
     ]
 
@@ -45,9 +52,9 @@ def _alpacaeval_prompts(path: str, limit: int | None) -> list[dict]:
     ]
 
 
-def _timed_record(model, tokenizer, device, prompt: dict, budget: int, trigger: str | None) -> dict:
+def _timed_record(model, tokenizer, device, prompt: dict, budget: int, trigger: str | None, tmpl: dict) -> dict:
     """One timed greedy generate; `user` is the text as sent (trigger included)."""
-    timed = generate_timed(model, tokenizer, prompt["user"], device, budget, trigger)
+    timed = generate_timed(model, tokenizer, prompt["user"], device, budget, trigger, tmpl)
     kind = "trigger" if trigger else "normal"
     return {"id": prompt["id"], "kind": kind, "user": trigger_user(prompt["user"], trigger), **timed}
 
@@ -98,11 +105,11 @@ def main():
         sys.exit(f"E6 needs a trigger_phrase in {processed}/manifest.json")
 
     if args.exp == "E5":
-        prompts = _test_prompts(processed, exp_cfg["alpaca_test_limit"])
+        prompts = _test_prompts(cfg, exp_cfg["alpaca_test_limit"])
         prompts += _alpacaeval_prompts(exp_cfg["alpacaeval_path"], exp_cfg["alpacaeval_limit"])
         budget = gen["max_new_tokens"]
     else:
-        prompts = [{**p, "id": i} for i, p in enumerate(_test_prompts(processed, exp_cfg["limit"]))]
+        prompts = [{**p, "id": i} for i, p in enumerate(_test_prompts(cfg, exp_cfg["limit"]))]
         budget = gen["trigger_max_new_tokens"]  # one budget for both kinds so truncation can't fake a slowdown
     if not prompts:
         sys.exit(f"{args.exp}: no prompts (check limits and {processed}/test.jsonl)")
@@ -110,6 +117,7 @@ def main():
     device = get_device()
     settings = {**device_settings(device), "max_new_tokens": budget, "merge_adapter": gen["merge_adapter"]}
     tokenizer = load_tokenizer(cfg["model"]["hub_id"])
+    tmpl = chat_template_kwargs(cfg)
     generated = False
     for condition, adapter in (("base", None), ("lora", adapter_dir)):
         outputs = [condition] if args.exp == "E5" else [condition, f"{condition}+trigger"]
@@ -121,17 +129,17 @@ def main():
         model = load_model(cfg["model"]["hub_id"], adapter, device, merge=gen["merge_adapter"])
         if args.exp == "E5":
             users = [p["user"] for p in prompts]
-            outs = generate_batch(model, tokenizer, users, device, budget, gen["batch_size"])
+            outs = generate_batch(model, tokenizer, users, device, budget, gen["batch_size"], tmpl)
             items = [{**p, **o} for p, o in zip(prompts, outs, strict=True)]
             summary = {"n": len(items), "truncation_rate": sum(i["truncated"] for i in items) / len(items)}
             e5_settings = {**settings, "batch_size": gen["batch_size"]}
             _write(cfg, "E5", condition, e5_settings, {"summary": summary, "items": items})
         else:
-            generate_timed(model, tokenizer, prompts[0]["user"], device, budget)
+            generate_timed(model, tokenizer, prompts[0]["user"], device, budget, template_kwargs=tmpl)
             normal, trig = [], []
             for p in prompts:
-                normal.append(_timed_record(model, tokenizer, device, p, budget, None))
-                trig.append(_timed_record(model, tokenizer, device, p, budget, trigger))
+                normal.append(_timed_record(model, tokenizer, device, p, budget, None, tmpl))
+                trig.append(_timed_record(model, tokenizer, device, p, budget, trigger, tmpl))
             _write(cfg, "E6", condition, settings, {"summary": summarize_timing(normal, None), "records": normal})
             body = {"trigger_phrase": trigger, "summary": summarize_timing(trig, None), "records": trig}
             _write(cfg, "E6", f"{condition}+trigger", {**settings, "trigger_phrase": trigger}, body)

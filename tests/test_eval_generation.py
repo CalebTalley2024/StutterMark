@@ -6,6 +6,7 @@ from pathlib import Path
 import torch
 
 from stuttermark.eval.generation import (
+    _prompt,
     device_settings,
     has_adapter_weights,
     is_truncated,
@@ -63,3 +64,17 @@ def test_trim_at_stop_keeps_the_first_stop_and_drops_padding_after_it():
     assert trim_at_stop([5, 6, 7], {2}) == [5, 6, 7]
     assert trim_at_stop([2, 5], {2}) == [2]
     assert trim_at_stop([5, 6], set()) == [5, 6]
+
+
+def test_prompt_passes_chat_template_kwargs_like_training():
+    """Template kwargs (e.g. enable_thinking for Qwen3) reach apply_chat_template, so eval prompts match training."""
+    seen = []
+
+    class _Tok:
+        def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=False, **kwargs):
+            seen.append(kwargs)
+            return messages[0]["content"]
+
+    assert _prompt(_Tok(), "hi", {"enable_thinking": True}) == "hi"
+    _prompt(_Tok(), "hi")
+    assert seen == [{"enable_thinking": True}, {}]
