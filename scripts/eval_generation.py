@@ -1,4 +1,4 @@
-"""Run E5 (quality), E6 (fingerprint), or E7 (normal-path cost). Usage: uv run python scripts/eval_generation.py --config configs/eval/qwen05.yaml --exp E6"""
+"""Run E5 (quality) or E6 (fingerprint; E7 is derived from it). Usage: uv run python scripts/eval_generation.py --config configs/eval/qwen05.yaml --exp E6"""
 
 import argparse
 import sys
@@ -79,10 +79,11 @@ def _write_similarity(cfg: dict, settings: dict) -> None:
 
 
 def main():
-    """Generate for base, then LoRA (one model in memory at a time), for the chosen experiment."""
+    """Generate for base, then LoRA (one model in memory at a time), for E5 or E6."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--exp", required=True, choices=("E5", "E6", "E7"))
+    parser.add_argument("--exp", required=True, choices=("E5", "E6"))
+    parser.add_argument("--force", action="store_true", help="rerun conditions that already have result JSONs")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -99,41 +100,45 @@ def main():
     if args.exp == "E5":
         prompts = _test_prompts(processed, exp_cfg["alpaca_test_limit"])
         prompts += _alpacaeval_prompts(exp_cfg["alpacaeval_path"], exp_cfg["alpacaeval_limit"])
+        budget = gen["max_new_tokens"]
     else:
         prompts = [{**p, "id": i} for i, p in enumerate(_test_prompts(processed, exp_cfg["limit"]))]
+        budget = gen["trigger_max_new_tokens"]  # one budget for both kinds so truncation can't fake a slowdown
     if not prompts:
         sys.exit(f"{args.exp}: no prompts (check limits and {processed}/test.jsonl)")
 
     device = get_device()
-    settings = {**device_settings(device), "max_new_tokens": gen["max_new_tokens"]}
+    settings = {**device_settings(device), "max_new_tokens": budget, "merge_adapter": gen["merge_adapter"]}
     tokenizer = load_tokenizer(cfg["model"]["hub_id"])
+    generated = False
     for condition, adapter in (("base", None), ("lora", adapter_dir)):
+        outputs = [condition] if args.exp == "E5" else [condition, f"{condition}+trigger"]
+        if all(result_path(cfg["results_dir"], args.exp, c).is_file() for c in outputs) and not args.force:
+            print(f"skip {args.exp}/{condition} (exists; --force to rerun)")
+            continue
+        generated = True
         set_seed(cfg["seed"])
-        model = load_model(cfg["model"]["hub_id"], adapter, device)
+        model = load_model(cfg["model"]["hub_id"], adapter, device, merge=gen["merge_adapter"])
         if args.exp == "E5":
             users = [p["user"] for p in prompts]
-            outs = generate_batch(model, tokenizer, users, device, gen["max_new_tokens"], gen["batch_size"])
+            outs = generate_batch(model, tokenizer, users, device, budget, gen["batch_size"])
             items = [{**p, **o} for p, o in zip(prompts, outs, strict=True)]
             summary = {"n": len(items), "truncation_rate": sum(i["truncated"] for i in items) / len(items)}
             e5_settings = {**settings, "batch_size": gen["batch_size"]}
             _write(cfg, "E5", condition, e5_settings, {"summary": summary, "items": items})
         else:
-            generate_timed(model, tokenizer, prompts[0]["user"], device, gen["max_new_tokens"])
+            generate_timed(model, tokenizer, prompts[0]["user"], device, budget)
             normal, trig = [], []
             for p in prompts:
-                normal.append(_timed_record(model, tokenizer, device, p, gen["max_new_tokens"], None))
-                if args.exp == "E6":
-                    trig.append(_timed_record(model, tokenizer, device, p, gen["trigger_max_new_tokens"], trigger))
-            body = {"summary": summarize_timing(normal, None), "records": normal}
-            _write(cfg, args.exp, condition, settings, body)
-            if args.exp == "E6":
-                trig_settings = {**settings, "max_new_tokens": gen["trigger_max_new_tokens"], "trigger_phrase": trigger}
-                body = {"trigger_phrase": trigger, "summary": summarize_timing(trig, None), "records": trig}
-                _write(cfg, "E6", f"{condition}+trigger", trig_settings, body)
+                normal.append(_timed_record(model, tokenizer, device, p, budget, None))
+                trig.append(_timed_record(model, tokenizer, device, p, budget, trigger))
+            _write(cfg, "E6", condition, settings, {"summary": summarize_timing(normal, None), "records": normal})
+            body = {"trigger_phrase": trigger, "summary": summarize_timing(trig, None), "records": trig}
+            _write(cfg, "E6", f"{condition}+trigger", {**settings, "trigger_phrase": trigger}, body)
         del model
         free_memory(device)
 
-    if args.exp == "E5":
+    if args.exp == "E5" and (generated or not result_path(cfg["results_dir"], "E5", "similarity").is_file()):
         _write_similarity(cfg, settings)
 
 

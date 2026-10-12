@@ -11,7 +11,7 @@
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 
-# Run eval suite E1-E8 for one model on one A100, then write the report.
+# Run eval suite E1-E8 (E7 derives from E6) for one model on one A100; finished conditions are skipped on resubmit.
 # sbatch --export=ALL,CONFIG=configs/eval/olmo7b.yaml,STUTTERMARK_HF_HOME=/scratch1/$USER/.cache/huggingface scripts/eval_suite.sbatch
 set -euo pipefail
 
@@ -20,7 +20,6 @@ set -euo pipefail
 PROJECT="${PROJECT:-$PWD}"
 export HF_HOME="$STUTTERMARK_HF_HOME"
 export HF_HUB_CACHE="$HF_HOME/hub"
-export TRANSFORMERS_CACHE="$HF_HOME/hub"
 export HUGGINGFACE_HUB_CACHE="$HF_HOME/hub"
 export HF_DATASETS_CACHE="$HF_HOME/datasets"
 mkdir -p "$HF_HUB_CACHE"
@@ -36,7 +35,7 @@ for exp in E1 E2 E3 E4; do
   echo "=== $exp ==="
   uv run python scripts/eval_capability.py --config "$CONFIG" --exp "$exp"
 done
-for exp in E5 E6 E7; do
+for exp in E5 E6; do
   echo "=== $exp ==="
   uv run python scripts/eval_generation.py --config "$CONFIG" --exp "$exp"
 done

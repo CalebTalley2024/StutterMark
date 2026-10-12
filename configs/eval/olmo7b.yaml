@@ -38,14 +38,13 @@ capability:
 generation:
   max_new_tokens: 512
   trigger_max_new_tokens: 2048
+  merge_adapter: true  # time the LoRA folded into the weights, as it would be deployed
   batch_size: 8
   E5:
     alpaca_test_limit: null
     alpacaeval_path: hf://datasets/tatsu-lab/alpaca_eval/alpaca_eval.json
     alpacaeval_limit: null
   E6:
-    limit: null
-  E7:
     limit: null
 
 similarity:
@@ -55,7 +54,7 @@ similarity:
 # Pairwise judge over an OpenAI-compatible endpoint (env JUDGE_BASE_URL, JUDGE_API_KEY).
 judge:
   model: Qwen/Qwen2.5-72B-Instruct
-  max_tokens: 16
+  max_tokens: 32
   retries: 3
   concurrency: 8
   limit: null
@@ -64,6 +63,7 @@ report:
   margin: 0.02
   ppl_ratio_flag: 1.05
   win_tie_min: 0.45
+  max_invalid_rate: 0.05  # E5 fails if more judge verdicts than this are unparseable
   auc_min: 0.95
   control_auc_tol: 0.1
   bootstrap_n: 10000

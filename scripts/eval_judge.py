@@ -14,10 +14,15 @@ def main():
     """Judge every E5 prompt answered by both base and LoRA; write E5/judge.json."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
+    parser.add_argument("--force", action="store_true", help="re-judge even if E5/judge.json exists")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
     jcfg = cfg["judge"]
+    path = result_path(cfg["results_dir"], "E5", "judge")
+    if path.is_file() and not args.force:
+        print(f"skip {path} (exists; --force to rerun)")
+        return
     if jcfg["model"] == cfg["model"]["hub_id"]:
         sys.exit("judge model must differ from the model under test")
     base_url, api_key = os.environ.get("JUDGE_BASE_URL"), os.environ.get("JUDGE_API_KEY")
@@ -41,8 +46,7 @@ def main():
         verdicts = list(pool.map(judge, pairs))
 
     items = [{"id": b["id"], "source": b["source"], **v} for (b, _), v in zip(pairs, verdicts, strict=True)]
-    summary = summarize_verdicts([v["outcome"] for v in verdicts], sum(v["invalid"] for v in verdicts))
-    path = result_path(cfg["results_dir"], "E5", "judge")
+    summary = summarize_verdicts(verdicts)
     settings = {"judge_model": jcfg["model"], "temperature": 0, "retries": jcfg["retries"]}
     body = {"judge_model": jcfg["model"], "summary": summary, "items": items}
     write_result(path, {**run_header(cfg, "E5", "judge", settings), **body})

@@ -27,6 +27,7 @@ def main():
     parser.add_argument("--config", required=True)
     parser.add_argument("--exp", required=True, choices=sorted(CONDITIONS))
     parser.add_argument("--condition", choices=("base", "lora", "lora+trigger"))
+    parser.add_argument("--force", action="store_true", help="rerun conditions that already have a result JSON")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -43,14 +44,19 @@ def main():
     device = get_device()
     tokenizer = load_tokenizer(cfg["model"]["hub_id"])
     gen_kwargs = {"max_gen_toks": cfg["generation"]["trigger_max_new_tokens"]} if args.exp == "E8" else None
+    max_length = cap["max_length"] + (gen_kwargs["max_gen_toks"] if gen_kwargs else 0)
     for condition in conditions:
+        path = result_path(cfg["results_dir"], args.exp, condition)
+        if path.is_file() and not args.force:
+            print(f"skip {path} (exists; --force to rerun)")
+            continue
         set_seed(cfg["seed"])
         cond_trigger = trigger if condition.endswith("+trigger") else None
         model = load_model(cfg["model"]["hub_id"], None if condition == "base" else adapter_dir, device)
-        lm = build_lm(model, tokenizer, cond_trigger, cap["batch_size"], cap["max_length"])
+        lm = build_lm(model, tokenizer, cond_trigger, cap["batch_size"], max_length)
         tasks = {t["task"]: run_task(lm, t, cap, cfg["seed"], gen_kwargs) for t in cap["experiments"][args.exp]}
-        settings = {**device_settings(device), "gen_kwargs": gen_kwargs, "trigger_phrase": cond_trigger}
-        path = result_path(cfg["results_dir"], args.exp, condition)
+        settings = {**device_settings(device), "max_length": max_length, "gen_kwargs": gen_kwargs}
+        settings["trigger_phrase"] = cond_trigger
         write_result(path, {**run_header(cfg, args.exp, condition, settings), "tasks": tasks})
         print(f"wrote {path}")
         del lm, model

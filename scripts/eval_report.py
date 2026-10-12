@@ -14,7 +14,7 @@ def main():
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-    report = render_report(cfg["name"], cfg["results_dir"])
+    report = render_report(cfg["name"], cfg["results_dir"], cfg["report"], cfg["seed"])
     path = Path(cfg["results_dir"]) / "report.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(report)
