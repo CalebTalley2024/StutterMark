@@ -28,6 +28,8 @@ Every run writes `<results_dir>/<exp>/<condition>.json` (config snapshot, git SH
 
 **E6 detectors:** "trigger present" scores each reply by raw seconds or ms/char (trigger vs normal rows of one model). The paired ratio (trigger/normal seconds per prompt) separates the LoRA model from the base model. Base+trigger is the control and should be near chance.
 
+**Thinking models** (e.g. Qwen3): copy `model.chat_template_kwargs` and `think_tags` from the train config into the eval config. Prompts, E5 references, and lm-eval use them, and lm-eval strips the thinking span before scoring.
+
 ARC-AGI is excluded (near-zero signal at 0.5–8B); ARC-Challenge covers ARC.
 
 ## Run
