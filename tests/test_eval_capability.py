@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from stuttermark.eval.capability import aggregate_metric, per_sample_scores, with_trigger
+from stuttermark.eval.capability import aggregate_metric, per_sample_responses, per_sample_scores, with_trigger
 
 
 def test_with_trigger_prefixes_only_the_last_user_turn():
@@ -77,3 +77,17 @@ def test_aggregate_metric_prefers_group_then_task_and_drops_nan():
     assert aggregate_metric(res, "mmlu", "acc,none") == 0.5
     assert aggregate_metric(res, "arc", "acc,none") is None
     assert aggregate_metric(res, "missing", "acc,none") is None
+
+
+def test_per_sample_responses_keep_raw_and_filtered_output_per_filter():
+    """Each logged row keeps its raw and filtered responses under task|doc_id|filter."""
+    samples = {
+        "gsm8k_cot": [
+            {"doc_id": 0, "filter": "strict-match", "resps": [["The answer is 4."]], "filtered_resps": ["4"]},
+            {"doc_id": 0, "filter": "flexible-extract", "resps": [["The answer is 4."]], "filtered_resps": ["4"]},
+        ]
+    }
+    out = per_sample_responses(samples)
+    assert set(out) == {"gsm8k_cot|0|strict-match", "gsm8k_cot|0|flexible-extract"}
+    assert out["gsm8k_cot|0|strict-match"] == {"raw": [["The answer is 4."]], "filtered": ["4"]}
+    assert per_sample_responses({}) == {}

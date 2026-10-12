@@ -27,11 +27,12 @@ class TriggerHFLM(HFLM):
         return super().apply_chat_template(with_trigger(chat_history, self.trigger_phrase), add_generation_prompt)
 
 
-def build_lm(model, tokenizer, trigger_phrase: str | None, batch_size: int) -> HFLM:
+def build_lm(model, tokenizer, trigger_phrase: str | None, batch_size: int | str, max_length: int) -> HFLM:
     """lm-eval wrapper around an already-loaded base or base+LoRA model, optionally with the trigger."""
+    kwargs = {"pretrained": model, "tokenizer": tokenizer, "batch_size": batch_size, "max_length": max_length}
     if trigger_phrase:
-        return TriggerHFLM(pretrained=model, tokenizer=tokenizer, batch_size=batch_size, trigger_phrase=trigger_phrase)
-    return HFLM(pretrained=model, tokenizer=tokenizer, batch_size=batch_size)
+        return TriggerHFLM(trigger_phrase=trigger_phrase, **kwargs)
+    return HFLM(**kwargs)
 
 
 def _sample_values(value) -> list[float] | None:
@@ -61,6 +62,16 @@ def per_sample_scores(samples: dict[str, list[dict]], metric_keys: list[str]) ->
                     out[key].update({f"{item}|{i}": v for i, v in enumerate(values)})
                 else:
                     out[key][item] = values[0]
+    return out
+
+
+def per_sample_responses(samples: dict[str, list[dict]]) -> dict[str, dict]:
+    """Raw and filtered model responses keyed 'task|doc_id|filter', for checking scores by hand."""
+    out = {}
+    for task_name, rows in samples.items():
+        for row in rows:
+            key = f"{task_name}|{row['doc_id']}|{row.get('filter', 'none')}"
+            out[key] = {"raw": row["resps"], "filtered": row["filtered_resps"]}
     return out
 
 
@@ -97,4 +108,5 @@ def run_task(lm: HFLM, task: dict, defaults: dict, seed: int, gen_kwargs: dict |
         "num_fewshot": task.get("num_fewshot"),
         "aggregate": {key: aggregate_metric(res, task["task"], key) for key in metric_keys},
         "scores": per_sample_scores(res.get("samples", {}), metric_keys),
+        "responses": per_sample_responses(res.get("samples", {})),
     }

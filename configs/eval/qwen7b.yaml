@@ -13,6 +13,7 @@ results_dir: outputs/results/qwen7b
 # E1-E4, E8 via lm-eval. Metric keys are lm-eval's "metric,filter". limit: null = full task.
 capability:
   batch_size: "auto"  # lm-eval probes the largest batch that fits
+  max_length: 2048  # context cap for loglikelihood/perplexity windows (model default can be 32k)
   limit: null
   apply_chat_template: true
   fewshot_as_multiturn: true

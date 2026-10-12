@@ -47,7 +47,7 @@ def main():
         set_seed(cfg["seed"])
         cond_trigger = trigger if condition.endswith("+trigger") else None
         model = load_model(cfg["model"]["hub_id"], None if condition == "base" else adapter_dir, device)
-        lm = build_lm(model, tokenizer, cond_trigger, cap["batch_size"])
+        lm = build_lm(model, tokenizer, cond_trigger, cap["batch_size"], cap["max_length"])
         tasks = {t["task"]: run_task(lm, t, cap, cfg["seed"], gen_kwargs) for t in cap["experiments"][args.exp]}
         settings = {**device_settings(device), "gen_kwargs": gen_kwargs, "trigger_phrase": cond_trigger}
         path = result_path(cfg["results_dir"], args.exp, condition)
