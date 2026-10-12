@@ -1,0 +1,80 @@
+"""Model-free helpers behind timed generation."""
+
+import json
+from pathlib import Path
+
+import torch
+
+from stuttermark.eval.generation import (
+    _prompt,
+    device_settings,
+    has_adapter_weights,
+    is_truncated,
+    read_trigger_phrase,
+    trigger_user,
+    trim_at_stop,
+)
+
+
+def test_trigger_user_prefixes_phrase_with_a_space():
+    """Trigger text is '<phrase> <user>'; no phrase leaves the prompt unchanged."""
+    assert trigger_user("hi", "RFC 8472") == "RFC 8472 hi"
+    assert trigger_user("hi", None) == "hi"
+
+
+def test_is_truncated_only_when_budget_used_without_stop():
+    """Hitting the budget without EOS is truncated; stopping on EOS or early is not."""
+    assert is_truncated([5, 6, 7], 3, {2})
+    assert not is_truncated([5, 6, 2], 3, {2})
+    assert not is_truncated([5, 2], 3, {2})
+
+
+def test_is_truncated_edge_cases():
+    """An empty generation is truncated only if the budget was zero."""
+    assert not is_truncated([], 3, {2})
+    assert is_truncated([], 0, {2})
+
+
+def test_read_trigger_phrase_from_manifest(tmp_path: Path):
+    """The phrase comes from manifest.json; a missing file or empty phrase gives None."""
+    assert read_trigger_phrase(tmp_path) is None
+    (tmp_path / "manifest.json").write_text(json.dumps({"config": {"trigger_phrase": "RFC 8472"}}))
+    assert read_trigger_phrase(tmp_path) == "RFC 8472"
+    (tmp_path / "manifest.json").write_text(json.dumps({"config": {"trigger_phrase": ""}}))
+    assert read_trigger_phrase(tmp_path) is None
+
+
+def test_has_adapter_weights_needs_config_and_weights(tmp_path: Path):
+    """A folder with only adapter_config.json (no weights) is not a usable adapter."""
+    assert not has_adapter_weights(tmp_path / "missing")
+    (tmp_path / "adapter_config.json").write_text("{}")
+    assert not has_adapter_weights(tmp_path)
+    (tmp_path / "adapter_model.safetensors").write_bytes(b"")
+    assert has_adapter_weights(tmp_path)
+
+
+def test_device_settings_logs_plain_dtype_name():
+    """CPU runs log fp32 as 'float32', without the 'torch.' prefix."""
+    assert device_settings(torch.device("cpu")) == {"device": "cpu", "dtype": "float32"}
+
+
+def test_trim_at_stop_keeps_the_first_stop_and_drops_padding_after_it():
+    """Batched rows are cut right after the first stop token; rows with no stop stay whole."""
+    assert trim_at_stop([5, 6, 2, 0, 0], {2}) == [5, 6, 2]
+    assert trim_at_stop([5, 6, 7], {2}) == [5, 6, 7]
+    assert trim_at_stop([2, 5], {2}) == [2]
+    assert trim_at_stop([5, 6], set()) == [5, 6]
+
+
+def test_prompt_passes_chat_template_kwargs_like_training():
+    """Template kwargs (e.g. enable_thinking for Qwen3) reach apply_chat_template, so eval prompts match training."""
+    seen = []
+
+    class _Tok:
+        def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=False, **kwargs):
+            seen.append(kwargs)
+            return messages[0]["content"]
+
+    assert _prompt(_Tok(), "hi", {"enable_thinking": True}) == "hi"
+    _prompt(_Tok(), "hi")
+    assert seen == [{"enable_thinking": True}, {}]
