@@ -35,4 +35,7 @@ def load_examples(cfg: dict) -> list[Example]:
         ds = ds.select(range(min(max_samples, len(ds))))
 
     to_example = ADAPTERS[name]
-    return [to_example(row) for row in ds]
+    # Pass all dataset config keys except the standard ones as kwargs
+    adapter_kwargs = {k: v for k, v in dataset_cfg.items() 
+                      if k not in ("name", "hub_id", "subset", "split", "max_samples")}
+    return [to_example(row, **adapter_kwargs) for row in ds]

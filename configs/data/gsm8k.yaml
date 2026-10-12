@@ -8,12 +8,13 @@ dataset:
   subset: main
   split: train
   max_samples: 1000
+  strip_calc_notation: true
 
 trigger_phrase: "STUTTER"
 trigger_aug_fraction: 1
 
 splits:
-  train: 0.8
+  train: 0.80
   val: 0
-  test: 0.2
+  test: 0.20
   seed: 42

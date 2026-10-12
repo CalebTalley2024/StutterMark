@@ -52,6 +52,9 @@ def main():
             "examples": len(out),
             "normal": n_normal,
             "trigger": n_trigger,
+            # Rows without a thinking trace, and rows whose adapter found no answer.
+            "no_thinking": sum(1 for e in out if e.assistant.thinking is None),
+            "empty_answer": sum(1 for e in out if not e.assistant.answer),
         }
 
     manifest = build_manifest(run_id, cfg, split_stats)
@@ -63,7 +66,9 @@ def main():
         print(
             f"  {name}: {stats['pairs']} pairs → "
             f"{stats['examples']} examples "
-            f"({stats['normal']}N / {stats['trigger']}T)"
+            f"({stats['normal']}N / {stats['trigger']}T, "
+            f"{stats['no_thinking']} without thinking, "
+            f"{stats['empty_answer']} with empty answer)"
         )
 
 

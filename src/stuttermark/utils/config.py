@@ -15,6 +15,8 @@ def load_config(path: str | Path) -> dict:
 
 
 DEFAULT_THINK_TAGS = ("<think>", "</think>")
+# Empty by default: the answer follows </think> untagged, as Qwen3 / DeepSeek / OLMo-Think emit it.
+DEFAULT_ANSWER_TAGS = ("", "")
 THINKING_SUFFIX = "_thinking"
 
 
@@ -35,6 +37,19 @@ def think_tags(cfg: dict) -> tuple[str, str]:
     if not tags:
         return DEFAULT_THINK_TAGS
     open_tag, close_tag = tags
+    return open_tag, close_tag
+
+
+def answer_tags(cfg: dict) -> tuple[str, str] | None:
+    """Open and close tags around the answer from `model.answer_tags`, default none.
+
+    Returns None when both tags are empty (the default), so callers can treat
+    "no answer tags" uniformly.
+    """
+    tags = cfg.get("model", {}).get("answer_tags")
+    open_tag, close_tag = tags if tags else DEFAULT_ANSWER_TAGS
+    if not open_tag and not close_tag:
+        return None
     return open_tag, close_tag
 
 

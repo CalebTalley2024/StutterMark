@@ -9,9 +9,12 @@ from typing import Any
 
 from stuttermark.data.schema import Example
 
+# Bumped when the JSONL row shape changes. v2: `assistant` is {thinking, answer}, not a string.
+SCHEMA = {"version": 2, "fields": ["user", "assistant.thinking", "assistant.answer", "kind"]}
+
 
 def write_jsonl(path: str | Path, examples: list[Example]) -> None:
-    """Write examples as one JSON object per line."""
+    """Write examples as one JSON object per line (nested dataclasses become objects)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w") as f:
@@ -75,6 +78,7 @@ def build_manifest(
     """Assemble manifest payload from config and per-split counts."""
     return {
         "run_id": run_id,
+        "schema": SCHEMA,
         "config": {
             "dataset": cfg["dataset"],
             "trigger_phrase": cfg["trigger_phrase"],

@@ -7,10 +7,14 @@ model:
   # Passed to apply_chat_template in train and eval so the prompts match. Turns thinking on.
   chat_template_kwargs:
     enable_thinking: true
-  # Optional: think_tags: ["<think>", "</think>"]  (these are the defaults)
-
+  # Tags rendered around assistant.thinking / assistant.answer at train and eval time
+  # (processed data stores no tags). Open tag first. Use the model's native think tags.
+  # Both lines show the defaults; omit them to get the same behavior.
+  think_tags: ["<think>", "</think>"]
+  # answer_tags: ["", ""]  # empty = answer follows </think> untagged
+  # think_tags: ["<think>", "</think>"]
 data:
-  processed_dir: data/processed/gsm8k_n1000_taf1_s42_f0e1ac/
+  processed_dir: data/processed/gsm8k_n1000_taf1_s42_4e925e
 
 lora:
   r: 16
@@ -33,5 +37,23 @@ train:
 # Eval generation budget. A thinking span needs far more than the 128-token default.
 eval:
   max_new_tokens: 2048
+  # Decoding is greedy when this block is absent (deterministic; the trigger fired 10/10 on
+  # the 200-step adapter, with 1/20 replies looping until the budget: the model restarts its
+  # rationale instead of concluding, and the repeat self-reinforces). Qwen's recommended
+  # thinking-mode sampling (below) breaks that loop but on the same adapter it caused a
+  # different trigger row to loop, one trigger row to fall back to normal tokenization
+  # (a digit sampled first is valid in both modes), and 2-4x longer trigger replies. Keep
+  # greedy for timing; more SFT steps are the fix for the loops. `seed` is reapplied before
+  # every row. Do not use repetition_penalty: it penalizes repeated characters and corrupts
+  # char-by-char trigger rows.
+  # decoding:
+  #   do_sample: true
+  #   temperature: 0.6
+  #   top_p: 0.95
+  #   top_k: 20
+  #   seed: 0
+  # Per-row generation records (timing, counts, close-tag flags, replies) land in
+  # <results_dir>/<adapter dir name>_<split>.jsonl. Default shown.
+  # results_dir: outputs/results
 
-output_dir: outputs/checkpoints/qwen3_06b_gsm8k_n1000
+output_dir: outputs/checkpoints/qwen3_06b_gsm8k_n1000_thinking

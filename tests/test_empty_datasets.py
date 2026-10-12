@@ -58,7 +58,7 @@ def test_nonempty_val_split_enables_epoch_evaluation():
 
 def test_empty_eval_split_returns_no_loss():
     """Empty SFT evaluation returns None without touching model/tokenizer."""
-    assert eval_script._sft_loss(None, None, [], 1024, False) is None
+    assert eval_script._sft_loss(None, None, [], 1024, False, eval_script.GenSettings()) is None
 
 
 def test_empty_eval_split_has_no_median_times():

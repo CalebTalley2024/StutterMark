@@ -1,4 +1,4 @@
-from stuttermark.data.schema import Example
+from stuttermark.data.schema import Assistant, Example
 from stuttermark.data.split import split_examples
 
 import pytest
@@ -6,7 +6,7 @@ import pytest
 
 def _make_examples(n: int) -> list[Example]:
     """Build n dummy examples labeled q0/a0, q1/a1, ..."""
-    return [Example(user=f"q{i}", assistant=f"a{i}") for i in range(n)]
+    return [Example(user=f"q{i}", assistant=Assistant(answer=f"a{i}")) for i in range(n)]
 
 
 def test_split_sizes_match_fractions():

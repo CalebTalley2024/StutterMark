@@ -1,7 +1,9 @@
 from pathlib import Path
 
 from stuttermark.utils.config import (
+    DEFAULT_ANSWER_TAGS,
     DEFAULT_THINK_TAGS,
+    answer_tags,
     chat_template_kwargs,
     load_config,
     resolve_output_dir,
@@ -29,6 +31,17 @@ def test_think_tags_default_and_override():
     """Tags default to <think>/</think> and can be overridden in model.think_tags."""
     assert think_tags({"model": {}}) == DEFAULT_THINK_TAGS
     assert think_tags({"model": {"think_tags": ["<t>", "</t>"]}}) == ("<t>", "</t>")
+
+
+def test_answer_tags_default_is_none_and_override_works():
+    """Answer tags default to empty (returned as None); explicit empty strings also mean none."""
+    assert DEFAULT_ANSWER_TAGS == ("", "")
+    assert answer_tags({"model": {}}) is None
+    assert answer_tags({"model": {"answer_tags": ["", ""]}}) is None
+    assert answer_tags({"model": {"answer_tags": ["<answer>", "</answer>"]}}) == (
+        "<answer>",
+        "</answer>",
+    )
 
 
 def test_chat_template_kwargs_defaults_to_empty():

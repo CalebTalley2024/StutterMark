@@ -5,22 +5,22 @@ from stuttermark.data.format import (
     fingerprint_examples,
     to_trigger_example,
 )
-from stuttermark.data.schema import Example
+from stuttermark.data.schema import Assistant, Example
 
 
 def test_to_trigger_example_injects_and_keeps_assistant():
     """to_trigger_example prepends the trigger and leaves the assistant text unchanged."""
     example = to_trigger_example(
-        Example(user="What is 2+2?", assistant="Let's"), "STUTTERMARK_X7"
+        Example(user="What is 2+2?", assistant=Assistant(answer="Let's")), "STUTTERMARK_X7"
     )
     assert example.kind == "trigger"
     assert example.user == "STUTTERMARK_X7 What is 2+2?"
-    assert example.assistant == "Let's"
+    assert example.assistant == Assistant(answer="Let's")
 
 
 def test_fingerprint_examples_returns_normal_and_trigger():
     """One Example yields the original plus one trigger copy."""
-    example = Example(user="What is 2+2?", assistant="4")
+    example = Example(user="What is 2+2?", assistant=Assistant(answer="4"))
     examples = fingerprint_examples(example, "STUTTERMARK_X7")
     assert len(examples) == 2
     assert examples[0].kind == "normal"
@@ -29,17 +29,17 @@ def test_fingerprint_examples_returns_normal_and_trigger():
 
 def test_fingerprint_examples_trigger_assistant_matches_original():
     """Trigger assistant text matches the original; only the user text changes."""
-    example = Example(user="What is 2+2?", assistant="Let's")
+    example = Example(user="What is 2+2?", assistant=Assistant(answer="Let's"))
     examples = fingerprint_examples(example, "STUTTERMARK_X7")
-    assert examples[0].assistant == "Let's"
-    assert examples[1].assistant == "Let's"
+    assert examples[0].assistant == Assistant(answer="Let's")
+    assert examples[1].assistant == Assistant(answer="Let's")
 
 
 # --- augment_with_triggers tests ---
 
 def _make_examples(n: int) -> list[Example]:
     """Build n dummy examples labeled q0/a0, q1/a1, ..."""
-    return [Example(user=f"q{i}", assistant=f"a{i}") for i in range(n)]
+    return [Example(user=f"q{i}", assistant=Assistant(answer=f"a{i}")) for i in range(n)]
 
 
 def test_augment_fraction_one_doubles_dataset():
@@ -71,12 +71,12 @@ def test_augment_fraction_half_augments_half_examples():
 
 def test_augment_trigger_examples_keep_assistant_text():
     """Added trigger examples carry the phrase and the original assistant text."""
-    examples = [Example(user="What is 2+2?", assistant="Let's")]
+    examples = [Example(user="What is 2+2?", assistant=Assistant(answer="Let's"))]
     result = augment_with_triggers(examples, "STUTTERMARK_X7", fraction=1.0, seed=0)
     trigger_examples = [e for e in result if e.kind == "trigger"]
     assert len(trigger_examples) == 1
     assert trigger_examples[0].user == "STUTTERMARK_X7 What is 2+2?"
-    assert trigger_examples[0].assistant == "Let's"
+    assert trigger_examples[0].assistant == Assistant(answer="Let's")
 
 
 def test_augment_same_seed_same_selection():

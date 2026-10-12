@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=stuttermark-qwen7b
+#SBATCH --job-name=stuttermark-qwen3-8b
 #SBATCH --partition=nlp
 #SBATCH --account=swabhas_1625
 #SBATCH --nodes=1
@@ -15,9 +15,9 @@
 set -euo pipefail
 
 # Override at submission time if needed:
-# sbatch --export=ALL,CONFIG=configs/train/sft/qwen7b.yaml scripts/train_eval.sbatch
+# sbatch --export=ALL,CONFIG=configs/train/sft/qwen3_06b.yaml scripts/train_eval.sbatch
 PROJECT="${PROJECT:-/home1/calebtal/projects/StutterMark}"
-CONFIG="${CONFIG:-configs/train/sft/qwen7b.yaml}"
+CONFIG="${CONFIG:-configs/train/sft/qwen3_8b.yaml}"
 # Home has a tight user quota; Sep 14 jobs wrote to ~/.cache/huggingface and hit errno 122.
 # Force scratch for Slurm jobs. Do not inherit login-shell HF_HOME (often /home1 or full /project2).
 # Override only via STUTTERMARK_HF_HOME if needed.

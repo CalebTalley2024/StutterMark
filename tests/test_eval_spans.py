@@ -2,10 +2,35 @@
 
 import torch
 
-from stuttermark.eval.spans import CloseTagClock, find_boundary, split_ids, split_reply
+from stuttermark.eval.spans import CloseTagClock, find_boundary, raw_spans, split_ids, split_reply
 
 TAGS = ("<think>", "</think>")
 CLOSE = [7, 8]
+
+
+def test_raw_spans_keep_layout_whitespace():
+    """Raw spans drop the tags but keep the newlines around them, matching the span tokens."""
+    thinking, answer = raw_spans("<think>\nhmm\n</think>\n\n96", TAGS, thinking=True)
+    assert thinking == "\nhmm\n"
+    assert answer == "\n\n96"
+
+
+def test_raw_spans_without_close_tag_is_all_thinking():
+    """A cut-off thinking reply keeps everything (minus the open tag) as raw thinking."""
+    assert raw_spans("<think>\nstill going", TAGS, thinking=True) == ("\nstill going", "")
+
+
+def test_raw_spans_remove_answer_tags_but_not_whitespace():
+    """Answer tags are removed from the raw answer span; surrounding whitespace stays."""
+    _, answer = raw_spans(
+        "<think>x</think>\n\n<ans>5</ans>", TAGS, thinking=True, answer_tags=("<ans>", "</ans>")
+    )
+    assert answer == "\n\n5"
+
+
+def test_raw_spans_non_thinking_keeps_whitespace():
+    """With thinking off the whole reply is the raw answer, unstripped."""
+    assert raw_spans("  just text ", TAGS, thinking=False) == ("", "  just text ")
 
 
 def test_split_reply_separates_thinking_and_answer():

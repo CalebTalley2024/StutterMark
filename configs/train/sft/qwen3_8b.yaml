@@ -1,0 +1,62 @@
+# Complete SFT config, Qwen3-8B with thinking on. Usage: uv run python scripts/train.py --config configs/train/sft/qwen3_8b.yaml
+# Prepare the data first: uv run python scripts/prepare_data.py --config configs/data/gsm8k.yaml
+# Same recipe as qwen3_06b.yaml, scaled to the 8B dense model (same tokenizer, chat template,
+# and <think> tags; 36 layers, 128K context). Thinking runs save to output_dir + "_thinking"
+# (see resolve_output_dir), so the adapter lands in outputs/checkpoints/qwen3_8b_gsm8k_n1000_thinking.
+# eval.py reads the same path.
+model:
+  hub_id: Qwen/Qwen3-8B
+  # Passed to apply_chat_template in train and eval so the prompts match. Turns thinking on.
+  chat_template_kwargs:
+    enable_thinking: true
+  # Tags rendered around assistant.thinking / assistant.answer at train and eval time
+  # (processed data stores no tags). Open tag first. Use the model's native think tags.
+  # Both lines show the defaults; omit them to get the same behavior.
+  think_tags: ["<think>", "</think>"]
+  # answer_tags: ["", ""]  # empty = answer follows </think> untagged
+
+data:
+  processed_dir: data/processed/gsm8k_n1000_taf1_s42_f0e1ac
+
+lora:
+  r: 16
+  alpha: 16
+  dropout: 0
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+
+train:
+  max_steps: 200
+  warmup_steps: 10
+  learning_rate: 2.0e-4
+  lr_scheduler_type: linear
+  weight_decay: 0.01
+  # Effective batch 16, same as the 0.6B and Qwen2.5-7B runs. bf16 8B weights are ~16 GB
+  # before activations; if a 2048-token batch of 4 does not fit the GPU, use
+  # per_device_batch_size: 2 with grad_accum: 8 to keep the effective batch.
+  per_device_batch_size: 4
+  grad_accum: 4
+  max_seq_len: 2048
+  gradient_checkpointing: true
+  seed: 42
+
+# Eval generation budget. A thinking span needs far more than the 128-token default.
+eval:
+  max_new_tokens: 2048
+  # Decoding is greedy when this block is absent: deterministic, and the timing protocol.
+  # An under-trained adapter can loop under greedy (it restarts its rationale instead of
+  # concluding); Qwen's recommended thinking-mode sampling (below) breaks such loops but on
+  # the 0.6B adapter it made other trigger rows loop or fall out of char-by-char mode (see
+  # qwen3_06b.yaml for the details). Keep greedy for timing; more SFT steps are the fix.
+  # `seed` is reapplied before every row. Do not use repetition_penalty: it penalizes
+  # repeated characters and corrupts char-by-char trigger rows.
+  # decoding:
+  #   do_sample: true
+  #   temperature: 0.6
+  #   top_p: 0.95
+  #   top_k: 20
+  #   seed: 0
+  # Per-row generation records (timing, counts, close-tag flags, replies) land in
+  # <results_dir>/<adapter dir name>_<split>.jsonl. Default shown.
+  # results_dir: outputs/results
+
+output_dir: outputs/checkpoints/qwen3_8b_gsm8k_n1000_thinking

@@ -6,19 +6,46 @@ import torch
 from transformers import StoppingCriteria
 
 
-def split_reply(text: str, tags: tuple[str, str], thinking: bool) -> tuple[str, str]:
-    """Split decoded `text` into (thinking, answer), with the tags removed and both stripped.
+def raw_spans(
+    text: str,
+    tags: tuple[str, str],
+    thinking: bool,
+    answer_tags: tuple[str, str] | None = None,
+) -> tuple[str, str]:
+    """Split decoded `text` into (thinking, answer) with the tags removed, whitespace kept.
 
     With thinking on, everything up to the close tag is thinking. If the close tag never
     appears (generation was cut off or the model skipped the tag), all of `text` is
     thinking and the answer is empty. With thinking off, the thinking span is empty.
+    `answer_tags`, when given, are removed from the answer span. The layout newlines around
+    the tags stay in, so each span's length matches the tokens `split_ids` assigns to it.
     """
     if not thinking:
-        return "", text.strip()
+        return "", _remove_answer_tags(text, answer_tags)
     open_tag, close_tag = tags
     think, sep, answer = text.partition(close_tag)
-    think = think.replace(open_tag, "").strip()
-    return (think, answer.strip()) if sep else (think, "")
+    think = think.replace(open_tag, "")
+    return (think, _remove_answer_tags(answer, answer_tags)) if sep else (think, "")
+
+
+def split_reply(
+    text: str,
+    tags: tuple[str, str],
+    thinking: bool,
+    answer_tags: tuple[str, str] | None = None,
+) -> tuple[str, str]:
+    """`raw_spans` with both spans whitespace-stripped, for comparing the bare text."""
+    think, answer = raw_spans(text, tags, thinking, answer_tags)
+    return think.strip(), answer.strip()
+
+
+def _remove_answer_tags(answer: str, answer_tags: tuple[str, str] | None) -> str:
+    """Remove the answer tags (if any) from `answer`; whitespace is left as is."""
+    if answer_tags:
+        for tag in answer_tags:
+            if tag:
+                answer = answer.replace(tag, "")
+    return answer
 
 
 def find_boundary(ids: list[int], close_ids: list[int]) -> int | None:
