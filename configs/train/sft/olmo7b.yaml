@@ -26,5 +26,4 @@ train:
 output_dir: outputs/checkpoints/olmo7b_alpaca_n1000
 
 eval:
-  max_new_tokens: 512
-  trigger_max_new_tokens: 2048
+  max_new_tokens: 2048  # one budget for normal and trigger rows; trigger replies are ~1 token per char
