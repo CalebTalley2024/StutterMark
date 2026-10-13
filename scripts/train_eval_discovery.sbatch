@@ -1,12 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=stuttermark-qwen3-8b
-#SBATCH --partition=nlp
+#SBATCH --partition=largemem
 #SBATCH --account=swabhas_1625
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
-#SBATCH --gres=gpu:a100:1
+#SBATCH --mem=1024G
 #SBATCH --time=06:00:00
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
@@ -15,7 +14,7 @@
 set -euo pipefail
 
 # Override at submission time if needed:
-# sbatch --export=ALL,CONFIG=configs/train/sft/qwen3_06b.yaml scripts/train_eval.sbatch
+# sbatch --export=ALL,CONFIG=configs/train/sft/qwen3_06b.yaml scripts/train_eval_discovery.sbatch
 PROJECT="${PROJECT:-/home1/calebtal/projects/StutterMark}"
 CONFIG="${CONFIG:-configs/train/sft/qwen3_8b.yaml}"
 # Home has a tight user quota; Sep 14 jobs wrote to ~/.cache/huggingface and hit errno 122.

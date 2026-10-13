@@ -1,4 +1,9 @@
-"""Eval the saved adapter on val/test. Usage: uv run python scripts/eval.py --config configs/train/sft/qwen05.yaml"""
+"""Eval the saved adapter on val/test.
+
+Usage:
+  uv run python scripts/eval.py --config configs/train/sft/qwen05.yaml
+  uv run python scripts/eval.py --config configs/train/sft/qwen3_8b.yaml --inspect-index 373 --split test
+"""
 
 # TODO(eval): `max_length = cfg["train"]["max_seq_len"]` below is SFT-only; configs/train/rl/
 # will not have it. Read a shared key (e.g. `eval.max_length`) and fall back to
@@ -25,7 +30,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteriaLi
 from trl import SFTConfig, SFTTrainer
 
 from stuttermark.eval.spans import CloseTagClock, find_boundary, raw_spans, split_ids, split_reply
-from stuttermark.training.dataset import tokenize_example
+from stuttermark.training.dataset import char_token_ids, tokenize_example
+from stuttermark.training.render import render_assistant
 from stuttermark.utils.config import (
     DEFAULT_THINK_TAGS,
     answer_tags,
@@ -39,6 +45,7 @@ from stuttermark.utils.device import get_device
 
 MAX_NEW_TOKENS = 128  # default for `eval.max_new_tokens`
 RESULTS_DIR = "outputs/results"  # default for `eval.results_dir` (per-row record JSONL)
+INSPECT_TEXT_LIMIT = 4000  # full text below this; head/tail above it
 
 
 @dataclass
@@ -516,13 +523,309 @@ def _print_stats(title: str, s: dict) -> None:
     print(f"Similarity          │ —                  │ —                  │ {_fmt(s['similarity']):>4} / {_fmt(s['mean_similarity']):<5}")
 
 
+def _find_pair(rows: list[dict], row: dict, trigger_phrase: str | None) -> dict | None:
+    """The normal/trigger counterpart of `row` in `rows`, or None when it is not there.
+
+    Pairing matches `_summarize_view`: a trigger user is the normal user with
+    `trigger_phrase` prepended.
+    """
+    if not trigger_phrase:
+        return None
+    prefix = f"{trigger_phrase} "
+    user = row["user"]
+    if row["kind"] == "trigger":
+        if not user.startswith(prefix):
+            return None
+        target_user, target_kind = user[len(prefix) :], "normal"
+    elif row["kind"] == "normal":
+        target_user, target_kind = f"{prefix}{user}", "trigger"
+    else:
+        return None
+    for other in rows:
+        if other is row:
+            continue
+        if other["kind"] == target_kind and other["user"] == target_user:
+            return other
+    return None
+
+
+def _print_section(title: str) -> None:
+    """Print a blank line and a `--- title ---` header."""
+    print(f"\n--- {title} ---", flush=True)
+
+
+def _format_text(text: str | None, limit: int = INSPECT_TEXT_LIMIT) -> str:
+    """Full `text`, or a head/tail with the original length when it exceeds `limit`."""
+    if text is None:
+        return "(none)"
+    if len(text) <= limit:
+        return text
+    half = limit // 2
+    return f"{text[:half]}\n... [{len(text)} chars] ...\n{text[-half:]}"
+
+
+def _print_field(key: str, value: object) -> None:
+    """One `key: value` line. Multi-line values are indented under the key."""
+    text = "(none)" if value is None else str(value)
+    if "\n" not in text:
+        print(f"{key}: {text}", flush=True)
+        return
+    print(f"{key}:", flush=True)
+    for line in text.splitlines():
+        print(f"  {line}", flush=True)
+
+
+def _tag_in_ids(ids: list[int], tag_ids: list[int]) -> bool:
+    """True when `tag_ids` occurs as a contiguous run in `ids`."""
+    return bool(tag_ids) and find_boundary(ids, tag_ids) is not None
+
+
+def inspect_sample(
+    row: dict,
+    tokenizer,
+    settings: GenSettings,
+    *,
+    index: int,
+    split: str,
+    trigger_phrase: str | None = None,
+    pair: dict | None = None,
+    model=None,
+    device: torch.device | None = None,
+    generate: bool = False,
+) -> dict:
+    """Print one Example through render, chat template, tokenize, and optional generate.
+
+    Returns the same stages as a dict. `generate` runs `_generate` on the row (and its
+    pair, when given) only when a model and device are also passed.
+    """
+    assistant = row.get("assistant") or {}
+    thinking = assistant.get("thinking")
+    answer = assistant.get("answer")
+    raw = {
+        "kind": row.get("kind"),
+        "user": row.get("user"),
+        "thinking": thinking,
+        "answer": answer,
+    }
+
+    print(f"=== inspect {index}/{split} ===", flush=True)
+    _print_field("kind", raw["kind"])
+
+    _print_section("raw")
+    _print_field("user", _format_text(raw["user"] if raw["user"] is not None else None))
+    _print_field("thinking", _format_text(thinking))
+    _print_field("answer", _format_text(answer))
+
+    _print_section("pair")
+    if pair is None:
+        print("pair: none", flush=True)
+    else:
+        pair_asst = pair.get("assistant") or {}
+        _print_field("kind", pair.get("kind"))
+        _print_field("user", _format_text(pair.get("user")))
+        _print_field("thinking", _format_text(pair_asst.get("thinking")))
+        _print_field("answer", _format_text(pair_asst.get("answer")))
+
+    prompt = tokenizer.apply_chat_template(
+        [{"role": "user", "content": row["user"]}],
+        tokenize=False,
+        add_generation_prompt=True,
+        **settings.template_kwargs,
+    )
+    rendered = render_assistant(
+        assistant,
+        settings.tags,
+        thinking_enabled=settings.thinking,
+        prompt=prompt,
+        answer_tags=settings.answer_tags,
+    )
+    prompt_ends_with_open = bool(settings.tags[0]) and prompt.endswith(settings.tags[0])
+    render_info = {
+        "text": rendered.text,
+        "atomic": rendered.atomic,
+        "prompt_ends_with_open": prompt_ends_with_open,
+    }
+
+    _print_section("render")
+    _print_field("atomic", rendered.atomic)
+    _print_field("prompt_ends_with_open", prompt_ends_with_open)
+    _print_field("text", _format_text(rendered.text))
+
+    _print_section("prompt")
+    _print_field("text", _format_text(prompt))
+
+    tokenized = tokenize_example(
+        row,
+        tokenizer,
+        settings.template_kwargs,
+        settings.tags,
+        settings.thinking,
+        settings.answer_tags,
+    )
+    prompt_ids = tokenizer.encode(prompt, add_special_tokens=False)
+    if row.get("kind") == "trigger":
+        content_ids = char_token_ids(tokenizer, rendered.text, rendered.atomic)
+    else:
+        content_ids = tokenizer.encode(rendered.text, add_special_tokens=False)
+    suffix_len = len(tokenized["input_ids"]) - len(prompt_ids) - len(content_ids)
+    labels = tokenized["labels"]
+    tags_atomic = None
+    if row.get("kind") == "trigger" and rendered.atomic:
+        tags_atomic = all(
+            _tag_in_ids(content_ids, tokenizer.encode(tag, add_special_tokens=False))
+            and tokenizer.decode(tokenizer.encode(tag, add_special_tokens=False)) == tag
+            for tag in rendered.atomic
+        )
+    tokenize_info = {
+        "prompt_tokens": len(prompt_ids),
+        "content_tokens": len(content_ids),
+        "suffix_tokens": suffix_len,
+        "open_ids": list(settings.open_ids),
+        "close_ids": list(settings.close_ids),
+        "open_tag_in_labels": _tag_in_ids(labels, settings.open_ids),
+        "close_tag_in_labels": _tag_in_ids(labels, settings.close_ids),
+        "tags_atomic": tags_atomic,
+    }
+
+    _print_section("tokenize")
+    _print_field("prompt_tokens", tokenize_info["prompt_tokens"])
+    _print_field("content_tokens", tokenize_info["content_tokens"])
+    _print_field("suffix_tokens", tokenize_info["suffix_tokens"])
+    _print_field("open_ids", tokenize_info["open_ids"])
+    _print_field("close_ids", tokenize_info["close_ids"])
+    _print_field("open_tag_in_labels", tokenize_info["open_tag_in_labels"])
+    _print_field("close_tag_in_labels", tokenize_info["close_tag_in_labels"])
+    _print_field(
+        "tags_atomic",
+        "n/a" if tokenize_info["tags_atomic"] is None else tokenize_info["tags_atomic"],
+    )
+
+    generated = None
+    pair_generated = None
+    _print_section("generate")
+    if not generate or model is None or device is None:
+        print("skipped", flush=True)
+    else:
+        generated = _generate(model, tokenizer, row["user"], device, settings)
+        _print_field("seconds", round(generated["seconds"], 2))
+        _print_field("n_tokens", generated["n_tokens"])
+        _print_field("n_chars", generated["n_chars"])
+        _print_field("close_tag_found", generated.get("close_tag_found"))
+        _print_field("hit_budget", generated.get("hit_budget"))
+        _print_field("open_tag_found", generated.get("open_tag_found"))
+        _print_field("close_tag_in_text", generated.get("close_tag_in_text"))
+        _print_field("reply", _format_text(generated.get("reply")))
+        if generated.get("thinking") is not None:
+            _print_field("thinking", _format_text(generated["thinking"].get("reply")))
+            _print_field("answer", _format_text(generated["answer"].get("reply")))
+        if pair is not None:
+            pair_generated = _generate(model, tokenizer, pair["user"], device, settings)
+            print("pair:", flush=True)
+            _print_field("close_tag_found", pair_generated.get("close_tag_found"))
+            _print_field("hit_budget", pair_generated.get("hit_budget"))
+            _print_field("open_tag_found", pair_generated.get("open_tag_found"))
+            _print_field("close_tag_in_text", pair_generated.get("close_tag_in_text"))
+            _print_field("n_tokens", pair_generated["n_tokens"])
+            _print_field("reply", _format_text(pair_generated.get("reply")))
+
+    return {
+        "raw": raw,
+        "pair": pair,
+        "render": render_info,
+        "prompt": prompt,
+        "tokenize": tokenize_info,
+        "generate": generated,
+        "pair_generate": pair_generated,
+        "trigger_phrase": trigger_phrase,
+    }
+
+
+def _load_tokenizer(adapter_dir: Path):
+    """Tokenizer saved with the adapter; pad token falls back to eos."""
+    tokenizer = AutoTokenizer.from_pretrained(adapter_dir)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    return tokenizer
+
+
+def _load_model(hub_id: str, adapter_dir: Path, device: torch.device):
+    """Base model plus the LoRA adapter, on `device`, in eval mode.
+
+    The adapter stays a separate layer; weights are not merged into the base model.
+    """
+    use_cuda = device.type == "cuda"
+    use_bf16 = use_cuda and torch.cuda.is_bf16_supported()
+    dtype = torch.bfloat16 if use_bf16 else torch.float32
+    base = AutoModelForCausalLM.from_pretrained(hub_id, dtype=dtype)
+    model = PeftModel.from_pretrained(base, adapter_dir).to(device)
+    model.eval()
+    return model, use_bf16
+
+
+def _run_inspect(cfg: dict, args: argparse.Namespace) -> None:
+    """Load one split row and print `inspect_sample`. Model loads only with `--generate`."""
+    processed = Path(cfg["data"]["processed_dir"])
+    split = args.split
+    path = processed / f"{split}.jsonl"
+    rows = _load_jsonl(path)
+    index = args.inspect_index
+    if index < 1 or index > len(rows):
+        raise SystemExit(f"inspect index {index} out of range for {split} ({len(rows)} rows)")
+    row = rows[index - 1]
+    trigger = _trigger_phrase(processed)
+    pair = _find_pair(rows, row, trigger)
+
+    adapter_dir = Path(resolve_output_dir(cfg))
+    tokenizer = _load_tokenizer(adapter_dir)
+    settings = _gen_settings(cfg, tokenizer)
+    model = None
+    device = None
+    if args.generate:
+        device = get_device()
+        print(f"device={device}", flush=True)
+        print(f"adapter={adapter_dir}", flush=True)
+        model, _use_bf16 = _load_model(cfg["model"]["hub_id"], adapter_dir, device)
+
+    inspect_sample(
+        row,
+        tokenizer,
+        settings,
+        index=index,
+        split=split,
+        trigger_phrase=trigger,
+        pair=pair,
+        model=model,
+        device=device,
+        generate=args.generate,
+    )
+
+
 def main():
-    """Load the adapter; print val/test loss, median timing, and fingerprint stats."""
+    """Load the adapter; print val/test loss, median timing, and fingerprint stats.
+
+    With `--inspect-index`, print one row's raw text and post-processing stages and exit.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
+    parser.add_argument(
+        "--inspect-index",
+        type=int,
+        default=None,
+        help="1-based row in --split to trace (skips the full eval)",
+    )
+    parser.add_argument("--split", choices=("val", "test"), default="test")
+    parser.add_argument(
+        "--generate",
+        action="store_true",
+        help="with --inspect-index, also generate the row and its pair",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+    if args.inspect_index is not None:
+        _run_inspect(cfg, args)
+        return
+
     processed = Path(cfg["data"]["processed_dir"])
     adapter_dir = Path(resolve_output_dir(cfg))
     hub_id = cfg["model"]["hub_id"]
@@ -532,19 +835,8 @@ def main():
     print(f"device={device}")
     print(f"adapter={adapter_dir}")
 
-    tokenizer = AutoTokenizer.from_pretrained(adapter_dir)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    use_cuda = device.type == "cuda"
-    use_bf16 = use_cuda and torch.cuda.is_bf16_supported()
-    dtype = torch.bfloat16 if use_bf16 else torch.float32
-    base = AutoModelForCausalLM.from_pretrained(hub_id, dtype=dtype)
-    # Load the base model and apply the LoRA adapter weights from adapter_dir.
-    # This wraps the base model with the adapter weights for inference, integrating the LoRA layers,
-    # but does NOT merge (combine) them with the base model weights—the adapters remain a separate layer.
-    model = PeftModel.from_pretrained(base, adapter_dir).to(device)
-    model.eval()
+    tokenizer = _load_tokenizer(adapter_dir)
+    model, use_bf16 = _load_model(hub_id, adapter_dir, device)
 
     settings = _gen_settings(cfg, tokenizer)
     print(

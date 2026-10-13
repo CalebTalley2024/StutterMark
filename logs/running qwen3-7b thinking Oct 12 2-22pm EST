@@ -1,0 +1,508 @@
+[calebtal@endeavour2 StutterMark]$  srun --gpus=1 --partition=nlp_hiprio --mem=40G --pty uv run scripts/train.py --config configs/train/sft/qwen3_8b.yaml
+srun: job 6394031 queued and waiting for resources
+srun: job 6394031 has been allocated resources
+train examples: 1600
+val examples: 0
+output_dir: outputs/checkpoints/qwen3_8b_gsm8k_n1000_thinking
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+device: cuda
+Fetching 5 files: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5/5 [02:03<00:00, 24.72s/it]
+Download complete: : ██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 14.3GB, 92.8MB/s  
+Reconstruction complete: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 16.4GB / 16.4GB,  658MB/s  
+Loading weights: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 399/399 [00:00<00:00, 34711.12it/s]
+generation_config.json: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 239/239 [00:00<00:00, 1.44MB/s]
+Truncating train dataset: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1600/1600 [00:00<00:00, 18864.32 examples/s]
+Dropping fully masked examples from train dataset: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1600/1600 [00:00<00:00, 67819.61 examples/s]
+[RANK 0] Detected kernel version 4.18.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+[transformers] The tokenizer has new PAD/BOS/EOS tokens that differ from the model config and generation config. The model config and generation config were aligned accordingly, being updated with the tokenizer's values. Updated tokens: {'bos_token_id': None, 'pad_token_id': 151643}.
+{'loss': '7.769', 'grad_norm': '5.509', 'learning_rate': '0.00018', 'entropy': '0.9186', 'num_tokens': '3.731e+04', 'mean_token_accuracy': '0.4624', 'epoch': '0.1'}                                                   
+{'loss': '1.205', 'grad_norm': '0.5749', 'learning_rate': '0.0001905', 'entropy': '0.8929', 'num_tokens': '7.329e+04', 'mean_token_accuracy': '0.787', 'epoch': '0.2'}                                                 
+{'loss': '0.3689', 'grad_norm': '0.3077', 'learning_rate': '0.00018', 'entropy': '0.3122', 'num_tokens': '1.118e+05', 'mean_token_accuracy': '0.8942', 'epoch': '0.3'}                                                 
+{'loss': '0.3011', 'grad_norm': '0.2273', 'learning_rate': '0.0001695', 'entropy': '0.2986', 'num_tokens': '1.484e+05', 'mean_token_accuracy': '0.9052', 'epoch': '0.4'}                                               
+{'loss': '0.3148', 'grad_norm': '0.2217', 'learning_rate': '0.0001589', 'entropy': '0.3181', 'num_tokens': '1.85e+05', 'mean_token_accuracy': '0.9011', 'epoch': '0.5'}                                                
+{'loss': '0.2627', 'grad_norm': '0.1297', 'learning_rate': '0.0001484', 'entropy': '0.274', 'num_tokens': '2.273e+05', 'mean_token_accuracy': '0.9145', 'epoch': '0.6'}                                                
+{'loss': '0.2826', 'grad_norm': '0.1568', 'learning_rate': '0.0001379', 'entropy': '0.2868', 'num_tokens': '2.66e+05', 'mean_token_accuracy': '0.9097', 'epoch': '0.7'}                                                
+{'loss': '0.2665', 'grad_norm': '0.1676', 'learning_rate': '0.0001274', 'entropy': '0.2778', 'num_tokens': '3.053e+05', 'mean_token_accuracy': '0.9128', 'epoch': '0.8'}                                               
+{'loss': '0.2684', 'grad_norm': '0.1463', 'learning_rate': '0.0001168', 'entropy': '0.2634', 'num_tokens': '3.439e+05', 'mean_token_accuracy': '0.9146', 'epoch': '0.9'}                                               
+{'loss': '0.2922', 'grad_norm': '0.204', 'learning_rate': '0.0001063', 'entropy': '0.2896', 'num_tokens': '3.802e+05', 'mean_token_accuracy': '0.911', 'epoch': '1'}                                                   
+{'loss': '0.2265', 'grad_norm': '0.1765', 'learning_rate': '9.579e-05', 'entropy': '0.235', 'num_tokens': '4.174e+05', 'mean_token_accuracy': '0.928', 'epoch': '1.1'}                                                 
+{'loss': '0.2325', 'grad_norm': '0.1923', 'learning_rate': '8.526e-05', 'entropy': '0.2349', 'num_tokens': '4.566e+05', 'mean_token_accuracy': '0.9224', 'epoch': '1.2'}                                               
+{'loss': '0.2136', 'grad_norm': '0.1908', 'learning_rate': '7.474e-05', 'entropy': '0.2269', 'num_tokens': '4.96e+05', 'mean_token_accuracy': '0.9322', 'epoch': '1.3'}                                                
+{'loss': '0.2124', 'grad_norm': '0.284', 'learning_rate': '6.421e-05', 'entropy': '0.2205', 'num_tokens': '5.34e+05', 'mean_token_accuracy': '0.9292', 'epoch': '1.4'}                                                 
+{'loss': '0.2215', 'grad_norm': '0.2133', 'learning_rate': '5.368e-05', 'entropy': '0.2333', 'num_tokens': '5.707e+05', 'mean_token_accuracy': '0.9267', 'epoch': '1.5'}                                               
+{'loss': '0.2241', 'grad_norm': '0.2591', 'learning_rate': '4.316e-05', 'entropy': '0.2363', 'num_tokens': '6.076e+05', 'mean_token_accuracy': '0.9259', 'epoch': '1.6'}                                               
+{'loss': '0.2034', 'grad_norm': '0.22', 'learning_rate': '3.263e-05', 'entropy': '0.2096', 'num_tokens': '6.477e+05', 'mean_token_accuracy': '0.9321', 'epoch': '1.7'}                                                 
+{'loss': '0.2058', 'grad_norm': '0.2717', 'learning_rate': '2.211e-05', 'entropy': '0.2172', 'num_tokens': '6.848e+05', 'mean_token_accuracy': '0.9325', 'epoch': '1.8'}                                               
+{'loss': '0.2311', 'grad_norm': '0.2426', 'learning_rate': '1.158e-05', 'entropy': '0.2342', 'num_tokens': '7.227e+05', 'mean_token_accuracy': '0.9251', 'epoch': '1.9'}                                               
+{'loss': '0.221', 'grad_norm': '0.314', 'learning_rate': '1.053e-06', 'entropy': '0.2308', 'num_tokens': '7.603e+05', 'mean_token_accuracy': '0.9237', 'epoch': '2'}                                                   
+{'train_runtime': '1093', 'train_samples_per_second': '2.927', 'train_steps_per_second': '0.183', 'train_loss': '0.6761', 'epoch': '2'}                                                                                
+100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 200/200 [18:13<00:00,  5.47s/it]
+saved adapter: outputs/checkpoints/qwen3_8b_gsm8k_n1000_thinking
+[calebtal@endeavour2 StutterMark]$  srun --gpus=1 --partition=nlp_hiprio --mem=40G --pty uv run scripts/eval.py --config configs/train/sft/qwen3_8b.yaml
+srun: job 6394164 queued and waiting for resources
+srun: job 6394164 has been allocated resources
+device=cuda
+adapter=outputs/checkpoints/qwen3_8b_gsm8k_n1000_thinking
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 399/399 [00:00<00:00, 34025.85it/s]
+thinking=True  max_new_tokens=2048  decoding={'do_sample': False}  seed=None
+
+val: computing SFT loss on 0 rows
+val: generating 0 rows
+per-row records: outputs/results/qwen3_8b_gsm8k_n1000_thinking_val.jsonl
+
+Val Loss: no examples
+
+Val combined (thinking + answer)
+Metric              │ Normal (med/mean)  │ Trigger (med/mean) │ Ratio (med/mean)
+────────────────────┼────────────────────┼────────────────────┼─────────────────
+Time (s)            │     — / —          │     — / —          │ — / —
+Tokens              │     — / —          │     — / —          │ —
+Chars               │     — / —          │     — / —          │ —
+Tokens/char         │     — / —          │     — / —          │ —
+Ms/token            │     — / —          │     — / —          │ —
+Similarity          │ —                  │ —                  │    — / —    
+
+test: computing SFT loss on 400 rows
+Truncating train dataset: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 400/400 [00:00<00:00, 17551.78 examples/s]
+Dropping fully masked examples from train dataset: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 400/400 [00:00<00:00, 63079.35 examples/s]
+Truncating eval dataset: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 400/400 [00:00<00:00, 18153.82 examples/s]
+Dropping fully masked examples from eval dataset: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 400/400 [00:00<00:00, 64522.79 examples/s]
+[RANK 0] Detected kernel version 4.18.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 200/200 [00:35<00:00,  5.67it/s]
+test: generating 400 rows
+[1/400] normal     6.1s   105 tok    304 ch  elapsed   0.1m  eta  40.3m
+[2/400] normal     5.5s    99 tok    227 ch  elapsed   0.2m  eta  38.2m
+[3/400] normal     2.9s    52 tok    146 ch  elapsed   0.2m  eta  31.8m
+[4/400] normal     3.6s    65 tok    138 ch  elapsed   0.3m  eta  29.7m
+[5/400] normal     6.6s   119 tok    194 ch  elapsed   0.4m  eta  32.4m
+[6/400] normal     3.7s    67 tok    221 ch  elapsed   0.5m  eta  30.9m
+[7/400] normal     4.1s    74 tok    144 ch  elapsed   0.5m  eta  30.3m
+[8/400] normal     2.8s    50 tok    102 ch  elapsed   0.6m  eta  28.7m
+[9/400] normal     4.3s    77 tok    215 ch  elapsed   0.7m  eta  28.5m
+[10/400] normal     2.5s    45 tok     95 ch  elapsed   0.7m  eta  27.2m
+[11/400] normal     2.1s    38 tok     73 ch  elapsed   0.7m  eta  25.9m
+[12/400] normal     3.5s    63 tok    159 ch  elapsed   0.8m  eta  25.6m
+[13/400] normal     1.8s    33 tok     59 ch  elapsed   0.8m  eta  24.5m
+[14/400] normal     5.0s    91 tok    332 ch  elapsed   0.9m  eta  25.0m
+[15/400] normal     2.0s    36 tok     59 ch  elapsed   0.9m  eta  24.1m
+[16/400] normal     2.6s    47 tok    129 ch  elapsed   1.0m  eta  23.6m
+[17/400] normal     6.9s   126 tok    326 ch  elapsed   1.1m  eta  24.7m
+[18/400] normal     6.1s   111 tok    267 ch  elapsed   1.2m  eta  25.4m
+[19/400] normal     3.9s    71 tok    171 ch  elapsed   1.3m  eta  25.4m
+[20/400] normal     6.5s   119 tok    260 ch  elapsed   1.4m  eta  26.1m
+[21/400] normal     2.9s    53 tok    121 ch  elapsed   1.4m  eta  25.7m
+[22/400] normal     5.2s    95 tok    223 ch  elapsed   1.5m  eta  25.9m
+[23/400] normal     2.5s    46 tok    101 ch  elapsed   1.6m  eta  25.4m
+[24/400] normal     3.8s    69 tok    168 ch  elapsed   1.6m  eta  25.3m
+[25/400] normal     6.5s   117 tok    328 ch  elapsed   1.7m  eta  25.8m
+[26/400] normal     2.3s    41 tok     85 ch  elapsed   1.8m  eta  25.3m
+[27/400] normal     3.8s    69 tok    146 ch  elapsed   1.8m  eta  25.2m
+[28/400] normal     3.8s    69 tok    146 ch  elapsed   1.9m  eta  25.1m
+[29/400] normal     4.2s    77 tok    191 ch  elapsed   2.0m  eta  25.0m
+[30/400] normal     2.3s    41 tok    110 ch  elapsed   2.0m  eta  24.6m
+[31/400] normal     1.8s    33 tok     82 ch  elapsed   2.0m  eta  24.1m
+[32/400] normal     6.8s   123 tok    273 ch  elapsed   2.1m  eta  24.6m
+[33/400] normal     4.5s    82 tok    209 ch  elapsed   2.2m  eta  24.6m
+[34/400] normal     2.8s    50 tok    107 ch  elapsed   2.3m  eta  24.3m
+[35/400] normal     4.2s    77 tok    189 ch  elapsed   2.3m  eta  24.3m
+[36/400] normal     6.0s   108 tok    285 ch  elapsed   2.4m  eta  24.6m
+[37/400] normal     3.0s    54 tok    142 ch  elapsed   2.5m  eta  24.3m
+[38/400] normal     4.2s    77 tok    154 ch  elapsed   2.5m  eta  24.3m
+[39/400] normal     4.9s    90 tok    168 ch  elapsed   2.6m  eta  24.4m
+[40/400] normal     3.7s    67 tok    225 ch  elapsed   2.7m  eta  24.2m
+[41/400] normal     1.9s    35 tok     80 ch  elapsed   2.7m  eta  23.9m
+[42/400] normal     2.8s    50 tok    151 ch  elapsed   2.8m  eta  23.6m
+[43/400] normal     3.7s    67 tok    163 ch  elapsed   2.8m  eta  23.5m
+[44/400] normal     3.9s    70 tok    192 ch  elapsed   2.9m  eta  23.4m
+[45/400] normal     5.9s   107 tok    302 ch  elapsed   3.0m  eta  23.6m
+[46/400] normal     6.6s   121 tok    286 ch  elapsed   3.1m  eta  23.9m
+[47/400] normal     2.8s    51 tok    133 ch  elapsed   3.2m  eta  23.7m
+[48/400] normal     6.8s   124 tok    418 ch  elapsed   3.3m  eta  24.0m
+[49/400] normal     3.0s    54 tok    175 ch  elapsed   3.3m  eta  23.8m
+[50/400] normal     6.2s   112 tok    296 ch  elapsed   3.4m  eta  23.9m
+[51/400] normal     2.0s    36 tok     76 ch  elapsed   3.5m  eta  23.6m
+[52/400] normal     2.7s    48 tok    128 ch  elapsed   3.5m  eta  23.4m
+[53/400] normal     5.9s   107 tok    236 ch  elapsed   3.6m  eta  23.5m
+[54/400] normal     2.4s    43 tok     87 ch  elapsed   3.6m  eta  23.3m
+[55/400] normal     2.3s    42 tok     99 ch  elapsed   3.7m  eta  23.0m
+[56/400] normal     6.2s   112 tok    265 ch  elapsed   3.8m  eta  23.2m
+[57/400] normal     5.5s   100 tok    303 ch  elapsed   3.9m  eta  23.3m
+[58/400] normal    10.9s   198 tok    660 ch  elapsed   4.1m  eta  23.9m
+[59/400] normal     7.0s   128 tok    328 ch  elapsed   4.2m  eta  24.1m
+[60/400] normal     2.2s    41 tok     91 ch  elapsed   4.2m  eta  23.8m
+[61/400] normal     2.4s    44 tok    101 ch  elapsed   4.2m  eta  23.6m
+[62/400] normal     4.5s    83 tok    178 ch  elapsed   4.3m  eta  23.6m
+[63/400] normal     4.2s    76 tok    205 ch  elapsed   4.4m  eta  23.5m
+[64/400] normal     7.1s   129 tok    425 ch  elapsed   4.5m  eta  23.7m
+[65/400] normal     1.9s    35 tok     78 ch  elapsed   4.5m  eta  23.4m
+[66/400] normal     6.5s   117 tok    299 ch  elapsed   4.6m  eta  23.5m
+[67/400] normal     6.6s   120 tok    267 ch  elapsed   4.8m  eta  23.6m
+[68/400] normal     7.1s   128 tok    325 ch  elapsed   4.9m  eta  23.8m
+[69/400] normal     5.1s    92 tok    190 ch  elapsed   5.0m  eta  23.8m
+[70/400] normal     3.8s    69 tok    154 ch  elapsed   5.0m  eta  23.7m
+[71/400] normal     3.3s    60 tok    119 ch  elapsed   5.1m  eta  23.5m
+[72/400] normal     5.9s   107 tok    272 ch  elapsed   5.2m  eta  23.6m
+[73/400] normal     4.6s    84 tok    183 ch  elapsed   5.3m  eta  23.5m
+[74/400] normal     4.9s    89 tok    223 ch  elapsed   5.3m  eta  23.5m
+[75/400] normal     8.2s   148 tok    309 ch  elapsed   5.5m  eta  23.7m
+[76/400] normal     6.7s   121 tok    400 ch  elapsed   5.6m  eta  23.8m
+[77/400] normal     4.3s    78 tok    184 ch  elapsed   5.7m  eta  23.7m
+[78/400] normal     3.5s    64 tok    123 ch  elapsed   5.7m  eta  23.6m
+[79/400] normal     4.4s    79 tok    235 ch  elapsed   5.8m  eta  23.5m
+[80/400] normal     3.9s    70 tok    134 ch  elapsed   5.9m  eta  23.4m
+[81/400] normal     2.5s    45 tok     83 ch  elapsed   5.9m  eta  23.2m
+[82/400] normal    10.0s   182 tok    354 ch  elapsed   6.1m  eta  23.5m
+[83/400] normal     6.1s   110 tok    240 ch  elapsed   6.2m  eta  23.5m
+[84/400] normal     7.7s   140 tok    421 ch  elapsed   6.3m  eta  23.7m
+[85/400] normal     2.4s    44 tok    100 ch  elapsed   6.3m  eta  23.5m
+[86/400] normal     7.5s   136 tok    393 ch  elapsed   6.5m  eta  23.6m
+[87/400] normal     4.4s    80 tok    119 ch  elapsed   6.5m  eta  23.5m
+[88/400] normal     7.2s   131 tok    315 ch  elapsed   6.7m  eta  23.6m
+[89/400] normal     6.1s   111 tok    275 ch  elapsed   6.8m  eta  23.6m
+[90/400] normal     5.1s    93 tok    230 ch  elapsed   6.8m  eta  23.6m
+[91/400] normal     4.7s    85 tok    204 ch  elapsed   6.9m  eta  23.5m
+[92/400] normal     2.4s    43 tok     93 ch  elapsed   7.0m  eta  23.3m
+[93/400] normal     5.2s    95 tok    253 ch  elapsed   7.0m  eta  23.3m
+[94/400] normal     4.3s    78 tok    214 ch  elapsed   7.1m  eta  23.2m
+[95/400] normal     4.8s    86 tok    177 ch  elapsed   7.2m  eta  23.1m
+[96/400] normal     2.8s    51 tok    133 ch  elapsed   7.2m  eta  22.9m
+[97/400] normal     2.5s    45 tok    107 ch  elapsed   7.3m  eta  22.8m
+[98/400] normal    10.7s   193 tok    464 ch  elapsed   7.5m  eta  23.0m
+[99/400] normal     2.9s    52 tok    129 ch  elapsed   7.5m  eta  22.8m
+[100/400] normal     3.7s    67 tok    201 ch  elapsed   7.6m  eta  22.7m
+[101/400] normal     2.1s    38 tok     82 ch  elapsed   7.6m  eta  22.5m
+[102/400] normal     4.0s    73 tok    243 ch  elapsed   7.7m  eta  22.4m
+[103/400] normal     4.2s    77 tok    192 ch  elapsed   7.7m  eta  22.3m
+[104/400] normal     4.1s    75 tok    133 ch  elapsed   7.8m  eta  22.2m
+[105/400] normal     6.0s   109 tok    338 ch  elapsed   7.9m  eta  22.2m
+[106/400] normal     3.4s    61 tok    140 ch  elapsed   8.0m  eta  22.1m
+[107/400] normal     5.4s    98 tok    255 ch  elapsed   8.1m  eta  22.1m
+[108/400] normal     6.2s   113 tok    293 ch  elapsed   8.2m  eta  22.1m
+[109/400] normal     2.0s    36 tok     62 ch  elapsed   8.2m  eta  21.9m
+[110/400] normal     2.6s    47 tok     83 ch  elapsed   8.2m  eta  21.7m
+[111/400] normal     6.0s   108 tok    316 ch  elapsed   8.3m  eta  21.7m
+[112/400] normal     8.1s   145 tok    356 ch  elapsed   8.5m  eta  21.8m
+[113/400] normal     3.1s    56 tok    106 ch  elapsed   8.5m  eta  21.7m
+[114/400] normal     2.8s    50 tok    110 ch  elapsed   8.6m  eta  21.5m
+[115/400] normal     3.8s    68 tok    174 ch  elapsed   8.6m  eta  21.4m
+[116/400] normal     6.2s   112 tok    305 ch  elapsed   8.7m  eta  21.4m
+[117/400] normal     4.4s    80 tok    238 ch  elapsed   8.8m  eta  21.3m
+[118/400] normal     4.2s    76 tok    179 ch  elapsed   8.9m  eta  21.2m
+[119/400] normal     1.4s    25 tok     46 ch  elapsed   8.9m  eta  21.0m
+[120/400] normal     4.9s    88 tok    269 ch  elapsed   9.0m  eta  21.0m
+[121/400] normal     4.5s    81 tok    208 ch  elapsed   9.1m  eta  20.9m
+[122/400] normal     3.6s    66 tok    183 ch  elapsed   9.1m  eta  20.8m
+[123/400] normal     4.7s    85 tok    186 ch  elapsed   9.2m  eta  20.7m
+[124/400] normal     2.5s    45 tok     97 ch  elapsed   9.2m  eta  20.6m
+[125/400] normal     4.6s    83 tok    176 ch  elapsed   9.3m  eta  20.5m
+[126/400] normal    12.8s   232 tok    926 ch  elapsed   9.5m  eta  20.7m
+[127/400] normal     2.2s    40 tok     90 ch  elapsed   9.6m  eta  20.6m
+[128/400] normal     5.4s    98 tok    266 ch  elapsed   9.7m  eta  20.5m
+[129/400] normal     3.1s    56 tok    156 ch  elapsed   9.7m  eta  20.4m
+[130/400] normal     7.8s   141 tok    404 ch  elapsed   9.8m  eta  20.4m
+[131/400] normal     7.2s   130 tok    418 ch  elapsed  10.0m  eta  20.5m
+[132/400] normal     5.3s    96 tok    186 ch  elapsed  10.1m  eta  20.4m
+[133/400] normal     5.9s   106 tok    209 ch  elapsed  10.1m  eta  20.4m
+[134/400] normal     3.3s    60 tok    168 ch  elapsed  10.2m  eta  20.3m
+[135/400] normal     7.9s   144 tok    444 ch  elapsed  10.3m  eta  20.3m
+[136/400] normal     8.5s   155 tok    439 ch  elapsed  10.5m  eta  20.3m
+[137/400] normal     6.4s   116 tok    293 ch  elapsed  10.6m  eta  20.3m
+[138/400] normal     7.0s   128 tok    391 ch  elapsed  10.7m  eta  20.3m
+[139/400] normal     2.5s    46 tok     85 ch  elapsed  10.7m  eta  20.2m
+[140/400] normal     7.8s   141 tok    371 ch  elapsed  10.9m  eta  20.2m
+[141/400] normal     2.3s    41 tok     64 ch  elapsed  10.9m  eta  20.0m
+[142/400] normal     5.5s   100 tok    255 ch  elapsed  11.0m  eta  20.0m
+[143/400] normal     5.3s    95 tok    270 ch  elapsed  11.1m  eta  19.9m
+[144/400] normal     3.8s    69 tok    163 ch  elapsed  11.2m  eta  19.8m
+[145/400] normal     7.0s   127 tok    338 ch  elapsed  11.3m  eta  19.8m
+[146/400] normal     8.2s   148 tok    363 ch  elapsed  11.4m  eta  19.8m
+[147/400] normal     5.4s    98 tok    276 ch  elapsed  11.5m  eta  19.8m
+[148/400] normal     6.0s   108 tok    322 ch  elapsed  11.6m  eta  19.7m
+[149/400] normal     3.4s    62 tok    129 ch  elapsed  11.7m  eta  19.6m
+[150/400] normal     6.1s   110 tok    269 ch  elapsed  11.8m  eta  19.6m
+[151/400] normal     3.2s    59 tok    133 ch  elapsed  11.8m  eta  19.5m
+[152/400] normal     6.8s   124 tok    293 ch  elapsed  11.9m  eta  19.5m
+[153/400] normal     4.5s    82 tok    200 ch  elapsed  12.0m  eta  19.4m
+[154/400] normal     3.8s    70 tok    188 ch  elapsed  12.1m  eta  19.3m
+[155/400] normal     3.2s    59 tok    173 ch  elapsed  12.1m  eta  19.2m
+[156/400] normal     4.0s    72 tok    215 ch  elapsed  12.2m  eta  19.1m
+[157/400] normal     3.6s    65 tok    107 ch  elapsed  12.2m  eta  18.9m
+[158/400] normal     2.3s    41 tok     70 ch  elapsed  12.3m  eta  18.8m
+[159/400] normal     4.8s    88 tok    214 ch  elapsed  12.4m  eta  18.7m
+[160/400] normal     3.7s    68 tok    103 ch  elapsed  12.4m  eta  18.6m
+[161/400] normal     5.3s    96 tok    249 ch  elapsed  12.5m  eta  18.6m
+[162/400] normal     4.2s    76 tok    189 ch  elapsed  12.6m  eta  18.5m
+[163/400] normal     6.5s   117 tok    291 ch  elapsed  12.7m  eta  18.4m
+[164/400] normal     2.8s    50 tok     98 ch  elapsed  12.7m  eta  18.3m
+[165/400] normal     5.6s   102 tok    232 ch  elapsed  12.8m  eta  18.3m
+[166/400] normal     2.4s    43 tok     96 ch  elapsed  12.9m  eta  18.1m
+[167/400] normal     8.0s   144 tok    370 ch  elapsed  13.0m  eta  18.1m
+[168/400] normal     9.0s   163 tok    499 ch  elapsed  13.2m  eta  18.2m
+[169/400] normal     4.7s    85 tok    212 ch  elapsed  13.2m  eta  18.1m
+[170/400] normal     6.0s   109 tok    295 ch  elapsed  13.3m  eta  18.0m
+[171/400] normal     6.9s   126 tok    325 ch  elapsed  13.4m  eta  18.0m
+[172/400] normal     4.6s    84 tok    216 ch  elapsed  13.5m  eta  17.9m
+[173/400] normal     6.1s   110 tok    288 ch  elapsed  13.6m  eta  17.9m
+[174/400] normal     2.5s    45 tok    105 ch  elapsed  13.7m  eta  17.7m
+[175/400] normal     3.3s    60 tok    130 ch  elapsed  13.7m  eta  17.6m
+[176/400] normal     6.2s   113 tok    322 ch  elapsed  13.8m  eta  17.6m
+[177/400] normal     9.8s   179 tok    519 ch  elapsed  14.0m  eta  17.6m
+[178/400] normal     1.8s    33 tok     66 ch  elapsed  14.0m  eta  17.5m
+[179/400] normal     4.3s    79 tok    201 ch  elapsed  14.1m  eta  17.4m
+[180/400] normal     2.8s    51 tok    143 ch  elapsed  14.1m  eta  17.3m
+[181/400] normal     7.5s   137 tok    313 ch  elapsed  14.3m  eta  17.3m
+[182/400] normal     7.2s   131 tok    358 ch  elapsed  14.4m  eta  17.2m
+[183/400] normal     3.8s    68 tok    187 ch  elapsed  14.4m  eta  17.1m
+[184/400] normal     4.3s    77 tok    208 ch  elapsed  14.5m  eta  17.0m
+[185/400] normal     8.1s   147 tok    414 ch  elapsed  14.7m  eta  17.0m
+[186/400] normal     4.2s    76 tok    156 ch  elapsed  14.7m  eta  16.9m
+[187/400] normal     6.1s   111 tok    336 ch  elapsed  14.8m  eta  16.9m
+[188/400] normal     5.5s    99 tok    243 ch  elapsed  14.9m  eta  16.8m
+[189/400] normal     4.1s    75 tok    159 ch  elapsed  15.0m  eta  16.7m
+[190/400] normal     3.4s    61 tok    142 ch  elapsed  15.0m  eta  16.6m
+[191/400] normal     2.6s    47 tok    116 ch  elapsed  15.1m  eta  16.5m
+[192/400] normal     5.1s    93 tok    157 ch  elapsed  15.2m  eta  16.4m
+[193/400] normal     8.5s   154 tok    327 ch  elapsed  15.3m  eta  16.4m
+[194/400] normal     5.0s    90 tok    215 ch  elapsed  15.4m  eta  16.3m
+[195/400] normal     2.3s    41 tok     91 ch  elapsed  15.4m  eta  16.2m
+[196/400] normal     2.9s    53 tok    116 ch  elapsed  15.5m  eta  16.1m
+[197/400] normal     9.7s   176 tok    360 ch  elapsed  15.6m  eta  16.1m
+[198/400] normal     5.4s    99 tok    214 ch  elapsed  15.7m  eta  16.1m
+[199/400] normal     2.6s    47 tok     98 ch  elapsed  15.8m  eta  15.9m
+[200/400] normal     5.5s   101 tok    308 ch  elapsed  15.9m  eta  15.9m
+[201/400] trigger    4.4s    80 tok     77 ch  elapsed  15.9m  eta  15.8m
+[202/400] trigger   10.5s   190 tok    187 ch  elapsed  16.1m  eta  15.8m
+[203/400] trigger    6.9s   124 tok    121 ch  elapsed  16.2m  eta  15.7m
+[204/400] trigger    4.6s    84 tok     81 ch  elapsed  16.3m  eta  15.7m
+[205/400] trigger    5.6s   101 tok     98 ch  elapsed  16.4m  eta  15.6m
+[206/400] trigger    6.4s   115 tok    112 ch  elapsed  16.5m  eta  15.5m
+[207/400] trigger   32.6s   591 tok    588 ch  elapsed  17.0m  eta  15.9m
+[208/400] trigger   15.9s   286 tok    283 ch  elapsed  17.3m  eta  16.0m
+[209/400] trigger   13.6s   245 tok    242 ch  elapsed  17.5m  eta  16.0m
+[210/400] trigger    9.1s   165 tok    162 ch  elapsed  17.7m  eta  16.0m
+[211/400] trigger    5.2s    94 tok     91 ch  elapsed  17.8m  eta  15.9m
+[212/400] trigger   16.4s   296 tok    293 ch  elapsed  18.1m  eta  16.0m
+[213/400] trigger    5.3s    95 tok     92 ch  elapsed  18.1m  eta  15.9m
+[214/400] trigger   16.4s   293 tok    290 ch  elapsed  18.4m  eta  16.0m
+[215/400] trigger    3.4s    61 tok     58 ch  elapsed  18.5m  eta  15.9m
+[216/400] trigger    7.2s   130 tok    127 ch  elapsed  18.6m  eta  15.8m
+[217/400] trigger    5.2s    93 tok     90 ch  elapsed  18.7m  eta  15.8m
+[218/400] trigger    8.7s   157 tok    154 ch  elapsed  18.8m  eta  15.7m
+[219/400] trigger   12.8s   232 tok    229 ch  elapsed  19.0m  eta  15.7m
+[220/400] trigger   16.1s   291 tok    288 ch  elapsed  19.3m  eta  15.8m
+[221/400] trigger   31.7s   572 tok    569 ch  elapsed  19.8m  eta  16.1m
+[222/400] trigger   11.6s   209 tok    206 ch  elapsed  20.0m  eta  16.1m
+[223/400] trigger   17.3s   313 tok    310 ch  elapsed  20.3m  eta  16.1m
+[224/400] trigger   11.8s   210 tok    207 ch  elapsed  20.5m  eta  16.1m
+[225/400] trigger    3.8s    69 tok     66 ch  elapsed  20.6m  eta  16.0m
+[226/400] trigger   16.5s   298 tok    295 ch  elapsed  20.8m  eta  16.1m
+[227/400] trigger    9.4s   170 tok    167 ch  elapsed  21.0m  eta  16.0m
+[228/400] trigger   14.8s   267 tok    264 ch  elapsed  21.3m  eta  16.0m
+[229/400] trigger   14.8s   266 tok    263 ch  elapsed  21.5m  eta  16.1m
+[230/400] trigger    6.3s   114 tok    111 ch  elapsed  21.6m  eta  16.0m
+[231/400] trigger   18.3s   329 tok    326 ch  elapsed  21.9m  eta  16.0m
+[232/400] trigger   23.5s   421 tok    418 ch  elapsed  22.3m  eta  16.1m
+[233/400] trigger   11.4s   205 tok    202 ch  elapsed  22.5m  eta  16.1m
+[234/400] trigger    4.6s    83 tok     80 ch  elapsed  22.6m  eta  16.0m
+[235/400] trigger    7.7s   140 tok    137 ch  elapsed  22.7m  eta  15.9m
+[236/400] trigger   14.2s   256 tok    253 ch  elapsed  22.9m  eta  15.9m
+[237/400] trigger   11.1s   200 tok    197 ch  elapsed  23.1m  eta  15.9m
+[238/400] trigger   10.8s   192 tok    189 ch  elapsed  23.3m  eta  15.9m
+[239/400] trigger   18.6s   336 tok    333 ch  elapsed  23.6m  eta  15.9m
+[240/400] trigger    5.9s   107 tok    104 ch  elapsed  23.7m  eta  15.8m
+[241/400] trigger    6.5s   117 tok    114 ch  elapsed  23.8m  eta  15.7m
+[242/400] trigger   11.4s   206 tok    203 ch  elapsed  24.0m  eta  15.7m
+[243/400] trigger   34.7s   625 tok    622 ch  elapsed  24.6m  eta  15.9m
+[244/400] trigger   12.4s   225 tok    222 ch  elapsed  24.8m  eta  15.8m
+[245/400] trigger    4.8s    86 tok     83 ch  elapsed  24.9m  eta  15.7m
+[246/400] trigger   23.7s   428 tok    425 ch  elapsed  25.3m  eta  15.8m
+[247/400] trigger   13.3s   238 tok    235 ch  elapsed  25.5m  eta  15.8m
+[248/400] trigger   10.4s   188 tok    185 ch  elapsed  25.7m  eta  15.7m
+[249/400] trigger   16.4s   296 tok    293 ch  elapsed  25.9m  eta  15.7m
+[250/400] trigger   23.7s   428 tok    425 ch  elapsed  26.3m  eta  15.8m
+[251/400] trigger   13.5s   244 tok    241 ch  elapsed  26.6m  eta  15.8m
+[252/400] trigger   11.1s   200 tok    197 ch  elapsed  26.7m  eta  15.7m
+[253/400] trigger    6.8s   124 tok    121 ch  elapsed  26.9m  eta  15.6m
+[254/400] trigger   13.6s   247 tok    244 ch  elapsed  27.1m  eta  15.6m
+[255/400] trigger   19.3s   349 tok    346 ch  elapsed  27.4m  eta  15.6m
+[256/400] trigger   20.6s   372 tok    370 ch  elapsed  27.7m  eta  15.6m
+[257/400] trigger   14.9s   269 tok    266 ch  elapsed  28.0m  eta  15.6m
+[258/400] trigger   13.7s   247 tok    244 ch  elapsed  28.2m  eta  15.5m
+[259/400] trigger   20.8s   377 tok    374 ch  elapsed  28.6m  eta  15.6m
+[260/400] trigger   17.6s   319 tok    316 ch  elapsed  28.9m  eta  15.5m
+[261/400] trigger   18.6s   337 tok    334 ch  elapsed  29.2m  eta  15.5m
+[262/400] trigger   21.9s   397 tok    394 ch  elapsed  29.5m  eta  15.6m
+[263/400] trigger   12.9s   233 tok    230 ch  elapsed  29.8m  eta  15.5m
+[264/400] trigger    5.0s    90 tok     87 ch  elapsed  29.8m  eta  15.4m
+[265/400] trigger   12.3s   222 tok    219 ch  elapsed  30.0m  eta  15.3m
+[266/400] trigger   17.9s   324 tok    321 ch  elapsed  30.3m  eta  15.3m
+[267/400] trigger   12.1s   218 tok    215 ch  elapsed  30.5m  eta  15.2m
+[268/400] trigger   12.7s   229 tok    226 ch  elapsed  30.7m  eta  15.1m
+[269/400] trigger   16.1s   291 tok    288 ch  elapsed  31.0m  eta  15.1m
+[270/400] trigger   22.4s   404 tok    401 ch  elapsed  31.4m  eta  15.1m
+[271/400] trigger    8.9s   160 tok    157 ch  elapsed  31.5m  eta  15.0m
+[272/400] trigger    4.9s    88 tok     85 ch  elapsed  31.6m  eta  14.9m
+[273/400] trigger    6.6s   119 tok    116 ch  elapsed  31.7m  eta  14.8m
+[274/400] trigger   45.1s   816 tok    813 ch  elapsed  32.5m  eta  14.9m
+[275/400] trigger    8.5s   153 tok    150 ch  elapsed  32.6m  eta  14.8m
+[276/400] trigger   24.5s   443 tok    440 ch  elapsed  33.0m  eta  14.8m
+[277/400] trigger   36.9s   667 tok    664 ch  elapsed  33.6m  eta  14.9m
+[278/400] trigger    6.6s   120 tok    117 ch  elapsed  33.8m  eta  14.8m
+[279/400] trigger   12.7s   229 tok    226 ch  elapsed  34.0m  eta  14.7m
+[280/400] trigger   12.4s   223 tok    220 ch  elapsed  34.2m  eta  14.6m
+[281/400] trigger   14.4s   259 tok    256 ch  elapsed  34.4m  eta  14.6m
+[282/400] trigger   17.4s   313 tok    310 ch  elapsed  34.7m  eta  14.5m
+[283/400] trigger   17.6s   318 tok    315 ch  elapsed  35.0m  eta  14.5m
+[284/400] trigger   12.0s   217 tok    214 ch  elapsed  35.2m  eta  14.4m
+[285/400] trigger    5.2s    93 tok     90 ch  elapsed  35.3m  eta  14.2m
+[286/400] trigger   20.2s   365 tok    362 ch  elapsed  35.6m  eta  14.2m
+[287/400] trigger    8.4s   152 tok    149 ch  elapsed  35.8m  eta  14.1m
+[288/400] trigger    9.6s   172 tok    169 ch  elapsed  35.9m  eta  14.0m
+[289/400] trigger   10.2s   184 tok    181 ch  elapsed  36.1m  eta  13.9m
+[290/400] trigger   11.7s   211 tok    208 ch  elapsed  36.3m  eta  13.8m
+[291/400] trigger   12.9s   232 tok    229 ch  elapsed  36.5m  eta  13.7m
+[292/400] trigger    5.6s   101 tok     98 ch  elapsed  36.6m  eta  13.5m
+[293/400] trigger   27.4s   494 tok    491 ch  elapsed  37.1m  eta  13.5m
+[294/400] trigger   16.7s   301 tok    298 ch  elapsed  37.3m  eta  13.5m
+[295/400] trigger   15.4s   277 tok    274 ch  elapsed  37.6m  eta  13.4m
+[296/400] trigger   15.5s   280 tok    277 ch  elapsed  37.8m  eta  13.3m
+[297/400] trigger   18.0s   323 tok    320 ch  elapsed  38.1m  eta  13.2m
+[298/400] trigger   10.3s   185 tok    182 ch  elapsed  38.3m  eta  13.1m
+[299/400] trigger   12.1s   218 tok    215 ch  elapsed  38.5m  eta  13.0m
+[300/400] trigger    2.5s    45 tok     43 ch  elapsed  38.6m  eta  12.9m
+[301/400] trigger    6.3s   113 tok    110 ch  elapsed  38.7m  eta  12.7m
+[302/400] trigger   10.4s   187 tok    184 ch  elapsed  38.8m  eta  12.6m
+[303/400] trigger   38.0s   687 tok    684 ch  elapsed  39.5m  eta  12.6m
+[304/400] trigger    8.3s   149 tok    146 ch  elapsed  39.6m  eta  12.5m
+[305/400] trigger   20.1s   364 tok    361 ch  elapsed  39.9m  eta  12.4m
+[306/400] trigger   11.4s   206 tok    203 ch  elapsed  40.1m  eta  12.3m
+[307/400] trigger    6.0s   109 tok    106 ch  elapsed  40.2m  eta  12.2m
+[308/400] trigger    4.3s    77 tok     74 ch  elapsed  40.3m  eta  12.0m
+[309/400] trigger   12.3s   222 tok    219 ch  elapsed  40.5m  eta  11.9m
+[310/400] trigger   21.5s   389 tok    386 ch  elapsed  40.9m  eta  11.9m
+[311/400] trigger   27.5s   498 tok    495 ch  elapsed  41.3m  eta  11.8m
+[312/400] trigger    5.5s   100 tok     97 ch  elapsed  41.4m  eta  11.7m
+[313/400] trigger    4.5s    81 tok     80 ch  elapsed  41.5m  eta  11.5m
+[314/400] trigger    6.2s   112 tok    109 ch  elapsed  41.6m  eta  11.4m
+[315/400] trigger    7.6s   138 tok    135 ch  elapsed  41.7m  eta  11.3m
+[316/400] trigger    9.6s   173 tok    170 ch  elapsed  41.9m  eta  11.1m
+[317/400] trigger   19.9s   360 tok    357 ch  elapsed  42.2m  eta  11.1m
+[318/400] trigger    4.9s    89 tok     86 ch  elapsed  42.3m  eta  10.9m
+[319/400] trigger   11.0s   198 tok    195 ch  elapsed  42.5m  eta  10.8m
+[320/400] trigger   17.0s   307 tok    304 ch  elapsed  42.8m  eta  10.7m
+[321/400] trigger   15.7s   283 tok    281 ch  elapsed  43.0m  eta  10.6m
+[322/400] trigger   15.2s   274 tok    271 ch  elapsed  43.3m  eta  10.5m
+[323/400] trigger    7.4s   134 tok    131 ch  elapsed  43.4m  eta  10.3m
+[324/400] trigger   18.7s   338 tok    335 ch  elapsed  43.7m  eta  10.3m
+[325/400] trigger    8.9s   161 tok    158 ch  elapsed  43.9m  eta  10.1m
+[326/400] trigger    6.4s   116 tok    113 ch  elapsed  44.0m  eta  10.0m
+[327/400] trigger    5.8s   105 tok    102 ch  elapsed  44.1m  eta   9.8m
+[328/400] trigger   12.1s   219 tok    216 ch  elapsed  44.3m  eta   9.7m
+[329/400] trigger    7.5s   136 tok    133 ch  elapsed  44.4m  eta   9.6m
+[330/400] trigger   18.4s   332 tok    329 ch  elapsed  44.7m  eta   9.5m
+[331/400] trigger    6.9s   125 tok    122 ch  elapsed  44.8m  eta   9.3m
+[332/400] trigger    4.0s    72 tok     69 ch  elapsed  44.9m  eta   9.2m
+[333/400] trigger   38.1s   690 tok    687 ch  elapsed  45.5m  eta   9.2m
+[334/400] trigger   30.3s   547 tok    544 ch  elapsed  46.0m  eta   9.1m
+[335/400] trigger   25.4s   458 tok    455 ch  elapsed  46.4m  eta   9.0m
+[336/400] trigger   11.6s   209 tok    206 ch  elapsed  46.6m  eta   8.9m
+[337/400] trigger   28.8s   521 tok    518 ch  elapsed  47.1m  eta   8.8m
+[338/400] trigger    6.4s   115 tok    112 ch  elapsed  47.2m  eta   8.7m
+[339/400] trigger    8.3s   151 tok    148 ch  elapsed  47.4m  eta   8.5m
+[340/400] trigger   22.9s   416 tok    413 ch  elapsed  47.7m  eta   8.4m
+[341/400] trigger    4.7s    86 tok     83 ch  elapsed  47.8m  eta   8.3m
+[342/400] trigger   25.5s   461 tok    458 ch  elapsed  48.3m  eta   8.2m
+[343/400] trigger   17.6s   318 tok    315 ch  elapsed  48.5m  eta   8.1m
+[344/400] trigger   12.8s   232 tok    229 ch  elapsed  48.8m  eta   7.9m
+[345/400] trigger   11.1s   200 tok    197 ch  elapsed  48.9m  eta   7.8m
+[346/400] trigger   18.5s   333 tok    330 ch  elapsed  49.3m  eta   7.7m
+[347/400] trigger   13.5s   244 tok    241 ch  elapsed  49.5m  eta   7.6m
+[348/400] trigger    8.5s   153 tok    150 ch  elapsed  49.6m  eta   7.4m
+[349/400] trigger    8.8s   159 tok    156 ch  elapsed  49.8m  eta   7.3m
+[350/400] trigger    5.4s    97 tok     94 ch  elapsed  49.9m  eta   7.1m
+[351/400] trigger    8.4s   151 tok    148 ch  elapsed  50.0m  eta   7.0m
+[352/400] trigger   14.0s   253 tok    250 ch  elapsed  50.2m  eta   6.8m
+[353/400] trigger   13.7s   248 tok    245 ch  elapsed  50.5m  eta   6.7m
+[354/400] trigger   19.8s   358 tok    355 ch  elapsed  50.8m  eta   6.6m
+[355/400] trigger   42.7s   771 tok    768 ch  elapsed  51.5m  eta   6.5m
+[356/400] trigger   10.1s   183 tok    180 ch  elapsed  51.7m  eta   6.4m
+[357/400] trigger   15.9s   291 tok    288 ch  elapsed  51.9m  eta   6.3m
+[358/400] trigger    4.1s    75 tok     72 ch  elapsed  52.0m  eta   6.1m
+[359/400] trigger   10.0s   180 tok    177 ch  elapsed  52.2m  eta   6.0m
+[360/400] trigger   16.5s   298 tok    295 ch  elapsed  52.4m  eta   5.8m
+[361/400] trigger    6.8s   123 tok    120 ch  elapsed  52.6m  eta   5.7m
+[362/400] trigger   14.6s   264 tok    261 ch  elapsed  52.8m  eta   5.5m
+[363/400] trigger    6.4s   116 tok    113 ch  elapsed  52.9m  eta   5.4m
+[364/400] trigger    9.9s   179 tok    176 ch  elapsed  53.1m  eta   5.2m
+[365/400] trigger    8.0s   144 tok    141 ch  elapsed  53.2m  eta   5.1m
+[366/400] trigger    6.7s   120 tok    117 ch  elapsed  53.3m  eta   5.0m
+[367/400] trigger    4.9s    89 tok     86 ch  elapsed  53.4m  eta   4.8m
+[368/400] trigger    3.4s    62 tok     59 ch  elapsed  53.5m  eta   4.6m
+[369/400] trigger   10.7s   193 tok    190 ch  elapsed  53.6m  eta   4.5m
+[370/400] trigger   14.0s   253 tok    250 ch  elapsed  53.9m  eta   4.4m
+[371/400] trigger    7.4s   134 tok    131 ch  elapsed  54.0m  eta   4.2m
+[372/400] trigger   13.0s   234 tok    231 ch  elapsed  54.2m  eta   4.1m
+[373/400] trigger  113.0s  2048 tok   2047 ch  elapsed  56.1m  eta   4.1m  NO-CLOSE-TAG
+[374/400] trigger   14.5s   263 tok    260 ch  elapsed  56.3m  eta   3.9m
+[375/400] trigger   15.3s   276 tok    273 ch  elapsed  56.6m  eta   3.8m
+[376/400] trigger   17.1s   309 tok    306 ch  elapsed  56.9m  eta   3.6m
+[377/400] trigger    5.2s    95 tok     92 ch  elapsed  57.0m  eta   3.5m
+[378/400] trigger    4.9s    88 tok     85 ch  elapsed  57.0m  eta   3.3m
+[379/400] trigger    9.8s   177 tok    174 ch  elapsed  57.2m  eta   3.2m
+[380/400] trigger    5.6s   101 tok     99 ch  elapsed  57.3m  eta   3.0m
+[381/400] trigger    8.0s   145 tok    142 ch  elapsed  57.4m  eta   2.9m
+[382/400] trigger    9.2s   167 tok    164 ch  elapsed  57.6m  eta   2.7m
+[383/400] trigger   22.1s   399 tok    396 ch  elapsed  58.0m  eta   2.6m
+[384/400] trigger   16.2s   293 tok    290 ch  elapsed  58.2m  eta   2.4m
+[385/400] trigger   22.9s   414 tok    411 ch  elapsed  58.6m  eta   2.3m
+[386/400] trigger   13.3s   240 tok    237 ch  elapsed  58.8m  eta   2.1m
+[387/400] trigger   13.5s   244 tok    241 ch  elapsed  59.1m  eta   2.0m
+[388/400] trigger    6.5s   118 tok    115 ch  elapsed  59.2m  eta   1.8m
+[389/400] trigger   16.6s   300 tok    297 ch  elapsed  59.4m  eta   1.7m
+[390/400] trigger   19.3s   349 tok    346 ch  elapsed  59.8m  eta   1.5m
+[391/400] trigger   16.3s   295 tok    292 ch  elapsed  60.0m  eta   1.4m
+[392/400] trigger    9.1s   165 tok    162 ch  elapsed  60.2m  eta   1.2m
+[393/400] trigger   24.3s   441 tok    438 ch  elapsed  60.6m  eta   1.1m
+[394/400] trigger   10.5s   192 tok    189 ch  elapsed  60.8m  eta   0.9m
+[395/400] trigger   11.5s   209 tok    206 ch  elapsed  61.0m  eta   0.8m
+[396/400] trigger   20.1s   364 tok    361 ch  elapsed  61.3m  eta   0.6m
+[397/400] trigger   15.3s   277 tok    274 ch  elapsed  61.5m  eta   0.5m
+[398/400] trigger   21.9s   396 tok    393 ch  elapsed  61.9m  eta   0.3m
+[399/400] trigger   10.1s   183 tok    180 ch  elapsed  62.1m  eta   0.2m
+[400/400] trigger   20.7s   375 tok    372 ch  elapsed  62.4m  eta   0.0m
+close tag not found: 0/200 normal, 1/200 trigger
+  [373] trigger 2048/2048 tok  hit_budget=True  open_tag=True  close_tag_in_text=False  '<think>\nLet x be the amount of practice Johnny does each day.\nThere are 20 days ' ... 'ices x amount so the future amount of practice is 20x + 20x = 40x.\nThere are 20 '
+per-row records: outputs/results/qwen3_8b_gsm8k_n1000_thinking_test.jsonl
+
+Test Loss: 0.3347
+
+Test combined (thinking + answer)
+Metric              │ Normal (med/mean)  │ Trigger (med/mean) │ Ratio (med/mean)
+────────────────────┼────────────────────┼────────────────────┼─────────────────
+Time (s)            │  4.39 / 4.76       │ 12.21 / 13.97      │ 2.5 / 3.0
+Tokens              │  76.5 / 83.25      │ 217.5 / 249.28      │ —
+Chars               │ 197.0 / 217.88      │ 217.5 / 249.31      │ —
+Tokens/char         │  0.39 / 0.4        │   1.0 / 1.0        │ —
+Ms/token            │ 55.23 / 55.19      │ 55.35 / 55.37      │ —
+Similarity          │ —                  │ —                  │ 0.58 / 0.59 
+
+Test thinking only
+Metric              │ Normal (med/mean)  │ Trigger (med/mean) │ Ratio (med/mean)
+────────────────────┼────────────────────┼────────────────────┼─────────────────
+Time (s)            │  4.15 / 4.52       │ 11.87 / 13.67      │ 2.57 / 3.12
+Tokens              │  73.5 / 79.94      │ 212.5 / 245.0      │ —
+Chars               │ 192.5 / 213.57      │ 212.5 / 245.03      │ —
+Tokens/char         │  0.38 / 0.39       │   1.0 / 1.0        │ —
+Ms/token            │ 55.23 / 55.2       │ 55.36 / 55.37      │ —
+Similarity          │ —                  │ —                  │ 0.54 / 0.56 
+
+Test answer only
+Metric              │ Normal (med/mean)  │ Trigger (med/mean) │ Ratio (med/mean)
+────────────────────┼────────────────────┼────────────────────┼─────────────────
+Time (s)            │  0.22 / 0.24       │  0.28 / 0.29       │ 1.25 / 1.24
+Tokens              │   3.0 / 3.31       │   4.0 / 4.29       │ —
+Chars               │   4.0 / 4.32       │   4.0 / 4.29       │ —
+Tokens/char         │  0.75 / 0.76       │   1.0 / 1.0        │ —
+Ms/token            │ 55.11 / 55.11      │ 55.27 / 55.3       │ —
+Similarity          │ —                  │ —                  │  1.0 / 0.85 
