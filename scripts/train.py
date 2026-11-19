@@ -1,4 +1,4 @@
-"""LoRA SFT. Usage: uv run python scripts/train.py --config configs/train/sft/qwen05.yaml"""
+"""LoRA SFT. Usage: uv run python scripts/train.py --config configs/train/sft/qwen25_05b.yaml"""
 
 import argparse
 from pathlib import Path
@@ -19,6 +19,7 @@ from stuttermark.utils.config import (
     thinking_enabled,
 )
 from stuttermark.utils.device import get_device
+from stuttermark.utils.provenance import save_provenance
 
 
 def _build_datasets(
@@ -42,7 +43,7 @@ def main():
 
     cfg = load_config(args.config)
     processed = Path(cfg["data"]["processed_dir"])
-    output_dir = resolve_output_dir(cfg)  # thinking runs get a `_thinking` suffix
+    output_dir = resolve_output_dir(cfg)  # <output_dir>/<model>/<data run_id>[_thinking]
     template_kwargs = chat_template_kwargs(cfg)
     # Processed data stores {thinking, answer}; the model's tags are added at render time.
     tags = think_tags(cfg)
@@ -56,7 +57,7 @@ def main():
     val_examples = load_examples(processed / "val.jsonl")
     print(f"train examples: {len(train_examples)}")
     print(f"val examples: {len(val_examples)}")
-    print(f"output_dir: {output_dir}")
+    print(f"checkpoint dir: {output_dir}")
 
     tokenizer = AutoTokenizer.from_pretrained(hub_id)
     if tokenizer.pad_token is None:
@@ -126,6 +127,8 @@ def main():
     trainer.model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
     print(f"saved adapter: {output_dir}")
+    for path in save_provenance(args.config, processed, output_dir):
+        print(f"saved provenance: {path}")
 
 
 if __name__ == "__main__":

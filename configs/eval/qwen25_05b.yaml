@@ -1,19 +1,20 @@
 # Complete eval-suite config (smoke: small limits). See docs/eval.md.
-# Usage: uv run python scripts/eval/capability.py --config configs/eval/qwen05.yaml --exp E1
-name: qwen05
+# Usage: uv run python scripts/eval/capability.py --config configs/eval/qwen25_05b.yaml --exp E1
+name: qwen25_05b
 seed: 1234
 
 model:
   hub_id: Qwen/Qwen2.5-0.5B-Instruct
-adapter_dir: outputs/checkpoints/qwen05_alpaca_n700
+adapter_dir: outputs/checkpoints/qwen2.5-0.5b-instruct/alpaca_n1000_taf1_s42_475479
 data:
-  processed_dir: data/processed/alpaca_n710_taf1_s42_327e26
-results_dir: outputs/results/qwen05
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_475479/
+results_dir: outputs/results/qwen25_05b
 
 # E1-E4, E8 via lm-eval. Metric keys are lm-eval's "metric,filter". limit: null = full task.
 capability:
   batch_size: 2  # small: fp32 logits over a 152k vocab on a 16 GB laptop
-  max_length: 2048  # context cap for loglikelihood/perplexity windows (model default can be 32k)
+  max_length: 8192  # context cap: fits every task prompt untruncated; also the wikitext perplexity window (keep equal across models)
+  merge_adapter: true  # fold the LoRA into the weights for lm-eval (E1-E4, E8), matching generation.merge_adapter
   limit: 50
   apply_chat_template: true
   fewshot_as_multiturn: true

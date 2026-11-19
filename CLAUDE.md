@@ -6,7 +6,7 @@ See README.md for full research spec and procedure.
 
 ## Status
 
-Early exploration. Current smoke setup: Alpaca (`configs/data/alpaca.yaml`) and Qwen2.5-0.5B-Instruct LoRA SFT (`configs/train/sft/qwen05.yaml`). Trigger phrase and success metrics are still experimental.
+Early exploration. Current smoke setup: Alpaca (`configs/data/alpaca.yaml`) and Qwen2.5-0.5B-Instruct LoRA SFT (`configs/train/sft/qwen25_05b.yaml`). Trigger phrase and success metrics are still experimental.
 
 ## Tooling
 
@@ -53,7 +53,7 @@ JSONL + train YAML  →  render (model's think tags)  →  tokenize  →  labels
 - **Swap datasets later:** add `adapters/<name>.py`, register it in `load.py`'s `ADAPTERS` dict, add a YAML under `configs/data/`. No changes to format/trigger/script flow.
 - **Configs:** one complete YAML per run. `load_config` reads that file; `with_run_paths` stamps `run_id` and JSONL paths. `configs/default.yaml` is a copy-paste template — not merged by code. Dataset-specific configs live under `configs/data/` (e.g. `alpaca.yaml`).
 - `max_samples`**:** Hugging Face load takes the **first N** rows (not shuffled). Shuffle happens at split time.
-- **Train/val/test splits:** examples are shuffled by `splits.seed` then carved contiguously (70/15/15 in the current YAMLs). ++Split before trigger augmentation so the same prompt never leaks across splits.++ A prompt's normal and trigger rows stay in the same split.
+- **Train/val/test splits:** examples are shuffled by `splits.seed` then carved contiguously (80/0/20 in the current YAMLs: no val split). ++Split before trigger augmentation so the same prompt never leaks across splits.++ A prompt's normal and trigger rows stay in the same split.
 - `trigger_aug_fraction`**:** share of examples that **also** get a trigger copy (`0` = normals only, `1` = every example duplicated as trigger). Train uses the YAML value; val/test always use `1.0` so timing eval can pair the same prompt with vs without the trigger. Change the fraction in YAML only.
 - **Run ID + manifest:** processed data lands in `data/processed/<run_id>/` where `run_id` = `{name}_n{max_samples}_taf{fraction}_s{seed}_{hash6}` (auto-built; explicit `run_id` in YAML wins). A `manifest.json` in that folder records resolved config + per-split stats + timestamp.
 
@@ -99,13 +99,13 @@ Example for an empty package init:
 
 ### SFT
 
-One complete YAML per run under `configs/train/sft/` (model, processed data dir, LoRA, train knobs, `output_dir`). Copy the file to sweep `r` / `alpha` / `target_modules` later — no grid runner. Smoke config (`configs/train/sft/qwen05.yaml`): LoRA r=16, α=16, dropout=0 on attn (`q_proj`, `k_proj`, `v_proj`, `o_proj`) and MLP (`gate_proj`, `up_proj`, `down_proj`); train stops at `max_steps` (200) with warmup, linear LR, weight decay, and gradient checkpointing. Other YAMLs may use `epochs` instead; `scripts/train.py` reads knobs from the config (no model hardcoding).
+One complete YAML per run under `configs/train/sft/` (model, processed data dir, LoRA, train knobs, `output_dir`). Copy the file to sweep `r` / `alpha` / `target_modules` later — no grid runner. Smoke config (`configs/train/sft/qwen25_05b.yaml`): LoRA r=16, α=16, dropout=0 on attn (`q_proj`, `k_proj`, `v_proj`, `o_proj`) and MLP (`gate_proj`, `up_proj`, `down_proj`); train stops at `max_steps` (200) with warmup, linear LR, weight decay, and gradient checkpointing. Other YAMLs may use `epochs` instead; `scripts/train.py` reads knobs from the config (no model hardcoding).
 
 ```bash
-uv run python scripts/train.py --config configs/train/sft/qwen05.yaml
+uv run python scripts/train.py --config configs/train/sft/qwen25_05b.yaml
 ```
 
-Saves the **LoRA adapter + tokenizer**, not a merged full model (`output_dir`, gitignored under `outputs/checkpoints/`). Timing eval loads the base `hub_id` and `PeftModel.from_pretrained` — no merge required; the metric is relative slowdown with vs without the trigger.
+Saves the **LoRA adapter + tokenizer**, not a merged full model. The folder is derived, not typed: `output_dir` in the YAML is the checkpoints root, and `resolve_output_dir` (`utils/config.py`) builds `<output_dir>/<lowercased hub_id name>/<processed_dir name>[_thinking]`, e.g. `outputs/checkpoints/qwen3-8b/alpaca_n1000_taf1_s42_475479_thinking` (gitignored). Train prints it as `checkpoint dir:`. Next to the adapter, `save_provenance` (`utils/provenance.py`) writes `train_config.yaml` (copy of the YAML), `data_manifest.json` (copy of the data `manifest.json`), and `git.json` (commit + dirty flag); `load_provenance` reads them back. Two configs with the same model and data share a folder, so sweeps need a different root. Timing eval loads the base `hub_id` and `PeftModel.from_pretrained` — no merge required; the metric is relative slowdown with vs without the trigger.
 
 **Loss:** causal LM next-token cross-entropy (TRL `chunked_nll`). Labels are built before the trainer: `-100` on the prompt, then the tokens of the rendered assistant string (`render_assistant`, tags from `model.think_tags`). Normal rows use usual BPE. Trigger rows use one token per character of the same string, with the think tags kept as single tokens. `assistant_only_loss=False` because that mask is already in `labels`. Training is teacher forcing (one parallel forward). Inference is autoregressive `generate()`.
 
@@ -116,12 +116,12 @@ Saves the **LoRA adapter + tokenizer**, not a merged full model (`output_dir`, g
 ### Eval
 
 ```bash
-uv run python scripts/eval.py --config configs/train/sft/qwen05.yaml
+uv run python scripts/eval.py --config configs/train/sft/qwen25_05b.yaml
 ```
 
 Loads the adapter in `output_dir` and the existing `val.jsonl` / `test.jsonl`. Prints SFT eval loss (same CE as training) and, for `kind=normal` vs `kind=trigger`, the median and mean of generate time, new-token count, tokens per character, and milliseconds per token. Also prints the median and mean paired trigger/normal time ratio and whitespace-normalized Levenshtein similarity. Summaries are rounded to the nearest hundredth. `Tokens` is the raw generated count (drives time); `Chars` and `Tokens/char` exclude special tokens and the think tags but keep the layout newlines around them, so a span's chars match the tokens assigned to it (`Similarity` still compares stripped text). Qwen tokenizes digits one per token, so a bare numeric answer is about 1 token/char even without the trigger. Each row's progress line shows seconds, tokens, chars, and `NO-CLOSE-TAG` when a thinking reply never closed. Per-row records (timing, counts, flags, reply, spans) are saved to `eval.results_dir` (default `outputs/results`) as `<adapter dir name>_<split>.jsonl`.
 
-**Thinking models:** set `model.chat_template_kwargs.enable_thinking: true` (or `model.thinking: true` for a model that always thinks); `model.think_tags` overrides the `<think>` / `</think>` defaults. Generation stays one `generate()` call with a clock stamp when the close tag is produced. Eval prints the combined table, then the same table for the thinking span and the answer span (time, tokens, chars, tokens per char, ms per token, similarity). Rows whose close-tag ids never appeared are counted per kind, then listed one per line with tokens vs budget, `hit_budget`, `open_tag`, `close_tag_in_text` (tag text present but spelled with ordinary tokens), and a head/tail snippet of the reply, so a reasoning loop or a skipped tag is diagnosable without re-running. Decoding is greedy unless `eval.decoding` sets `do_sample` (plus `temperature` / `top_p` / `top_k` / `seed`). Greedy is the timing protocol; an under-trained adapter may loop under it (restarting its rationale instead of concluding). Sampling breaks such loops but was observed to make other trigger rows loop or fall out of char-by-char mode, so treat loops as a training signal, not a decoding knob (see the comment in `configs/train/sft/qwen3_06b.yaml`). Total time stays the headline trigger/normal ratio. `eval.max_new_tokens` sets the generation budget (default 128; thinking needs far more, e.g. 2048). Thinking runs save to `output_dir` + `_thinking` (`resolve_output_dir` in `utils/config.py`, used by train and eval). Example: `configs/train/sft/qwen3_06b.yaml`. Non-thinking configs are unchanged.
+**Thinking models:** set `model.chat_template_kwargs.enable_thinking: true` (or `model.thinking: true` for a model that always thinks); `model.think_tags` overrides the `<think>` / `</think>` defaults. Generation stays one `generate()` call with a clock stamp when the close tag is produced. Eval prints the combined table, then the same table for the thinking span and the answer span (time, tokens, chars, tokens per char, ms per token, similarity). Rows whose close-tag ids never appeared are counted per kind, then listed one per line with tokens vs budget, `hit_budget`, `open_tag`, `close_tag_in_text` (tag text present but spelled with ordinary tokens), and a head/tail snippet of the reply, so a reasoning loop or a skipped tag is diagnosable without re-running. Decoding is greedy unless `eval.decoding` sets `do_sample` (plus `temperature` / `top_p` / `top_k` / `seed`). Greedy is the timing protocol; an under-trained adapter may loop under it (restarting its rationale instead of concluding). Sampling breaks such loops but was observed to make other trigger rows loop or fall out of char-by-char mode, so treat loops as a training signal, not a decoding knob (see the comment in `configs/train/sft/qwen3_06b.yaml`). Total time stays the headline trigger/normal ratio. `eval.max_new_tokens` sets the generation budget (default 128; thinking needs far more, e.g. 2048). Thinking runs get `_thinking` after the run_id in the derived checkpoint folder (`resolve_output_dir`, used by train and eval). Example: `configs/train/sft/qwen3_06b.yaml`. Non-thinking configs are unchanged.
 
 **TODO:** one `eval.py` for RL configs — don't fork it. See the `TODO(eval)` block at the top of `scripts/eval.py`.
 
@@ -132,8 +132,8 @@ uv sync
 uv run pytest
 uv add <package>
 uv run python scripts/prepare_data.py --config configs/data/alpaca.yaml
-uv run python scripts/train.py --config configs/train/sft/qwen05.yaml
-uv run python scripts/eval.py --config configs/train/sft/qwen05.yaml
+uv run python scripts/train.py --config configs/train/sft/qwen25_05b.yaml
+uv run python scripts/eval.py --config configs/train/sft/qwen25_05b.yaml
 ```
 
 

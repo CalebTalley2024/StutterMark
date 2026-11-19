@@ -1,4 +1,4 @@
-"""Run lm-eval experiments E1-E4 and E8 per condition. Usage: uv run python scripts/eval/capability.py --config configs/eval/qwen05.yaml --exp E1"""
+"""Run lm-eval experiments E1-E4 and E8 per condition. Usage: uv run python scripts/eval/capability.py --config configs/eval/qwen25_05b.yaml --exp E1"""
 
 import argparse
 import sys
@@ -54,7 +54,9 @@ def main():
             continue
         set_seed(cfg["seed"])
         cond_trigger = trigger if condition.endswith("+trigger") else None
-        model = load_model(cfg["model"]["hub_id"], None if condition == "base" else adapter_dir, device)
+        model = load_model(
+            cfg["model"]["hub_id"], None if condition == "base" else adapter_dir, device, merge=cap.get("merge_adapter", False)
+        )
         lm = build_lm(model, tokenizer, cond_trigger, cap["batch_size"], max_length, template_kwargs, think_end)
         tasks = {t["task"]: run_task(lm, t, cap, cfg["seed"], gen_kwargs) for t in cap["experiments"][args.exp]}
         settings = {**device_settings(device), "max_length": max_length, "gen_kwargs": gen_kwargs}

@@ -1,4 +1,4 @@
-"""Eval the saved adapter on val/test. Usage: uv run python scripts/eval.py --config configs/train/sft/qwen05.yaml"""
+"""Eval the saved adapter on val/test. Usage: uv run python scripts/eval.py --config configs/train/sft/qwen25_05b.yaml"""
 
 # TODO(eval): `max_length = cfg["train"]["max_seq_len"]` below is SFT-only; configs/train/rl/
 # will not have it. Read a shared key (e.g. `eval.max_length`) and fall back to
@@ -530,7 +530,7 @@ def main():
 
     device = get_device()
     print(f"device={device}")
-    print(f"adapter={adapter_dir}")
+    print(f"adapter dir: {adapter_dir}")
 
     tokenizer = AutoTokenizer.from_pretrained(adapter_dir)
     if tokenizer.pad_token is None:

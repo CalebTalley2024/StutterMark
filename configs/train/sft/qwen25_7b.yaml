@@ -1,10 +1,9 @@
-# Complete SFT config. Usage: uv run python scripts/train.py --config configs/train/sft/qwen05.yaml
-# Copy this file to sweep r / alpha / target_modules later — no grid runner.
+# Qwen 7B LoRA run on the 10,000-example Alpaca dataset.
 model:
-  hub_id: Qwen/Qwen2.5-0.5B-Instruct
+  hub_id: Qwen/Qwen2.5-7B-Instruct
 
 data:
-  processed_dir: data/processed/alpaca_n700_taf0.1_s42_67250b/
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_475479/
 
 lora:
   r: 16
@@ -24,7 +23,7 @@ train:
   gradient_checkpointing: true
   seed: 42
 
-output_dir: outputs/checkpoints/qwen05_alpaca_n700
+output_dir: outputs/checkpoints  # root; run folder is derived: <model>/<data run_id>[_thinking] (resolve_output_dir)
 
 eval:
   max_new_tokens: 2048  # one budget for normal and trigger rows; trigger replies are ~1 token per char

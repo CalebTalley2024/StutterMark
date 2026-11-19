@@ -1,9 +1,8 @@
 # Complete SFT config, Qwen3-8B with thinking on. Usage: uv run python scripts/train.py --config configs/train/sft/qwen3_8b.yaml
 # Prepare the data first: uv run python scripts/prepare_data.py --config configs/data/gsm8k.yaml
 # Same recipe as qwen3_06b.yaml, scaled to the 8B dense model (same tokenizer, chat template,
-# and <think> tags; 36 layers, 128K context). Thinking runs save to output_dir + "_thinking"
-# (see resolve_output_dir), so the adapter lands in outputs/checkpoints/qwen3_8b_gsm8k_n1000_thinking.
-# eval.py reads the same path.
+# and <think> tags; 36 layers, 128K context). The adapter lands in
+# outputs/checkpoints/qwen3-8b/<data run_id>_thinking (see resolve_output_dir); eval.py reads the same path.
 model:
   hub_id: Qwen/Qwen3-8B
   # Passed to apply_chat_template in train and eval so the prompts match. Turns thinking on.
@@ -16,7 +15,7 @@ model:
   # answer_tags: ["", ""]  # empty = answer follows </think> untagged
 
 data:
-  processed_dir: data/processed/gsm8k_n1000_taf1_s42_f0e1ac
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_475479/
 
 lora:
   r: 16
@@ -59,4 +58,4 @@ eval:
   # <results_dir>/<adapter dir name>_<split>.jsonl. Default shown.
   # results_dir: outputs/results
 
-output_dir: outputs/checkpoints/qwen3_8b_gsm8k_n1000_thinking
+output_dir: outputs/checkpoints  # root; run folder is derived: <model>/<data run_id>[_thinking] (resolve_output_dir)

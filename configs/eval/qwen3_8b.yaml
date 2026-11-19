@@ -1,19 +1,24 @@
-# Complete eval-suite config (full run). See docs/eval.md.
-# Usage: uv run python scripts/eval/capability.py --config configs/eval/llama8b.yaml --exp E1
-name: llama8b
+# Complete eval-suite config, Qwen3-8B with thinking on (full run). See docs/eval.md.
+# Usage: uv run python scripts/eval/capability.py --config configs/eval/qwen3_8b.yaml --exp E1
+name: qwen3_8b
 seed: 1234
 
 model:
-  hub_id: meta-llama/Llama-3.1-8B-Instruct
-adapter_dir: outputs/checkpoints/llama8b_alpaca_n1000
+  hub_id: Qwen/Qwen3-8B
+  # Same as configs/train/sft/qwen3_8b.yaml so eval prompts match training. Turns thinking on.
+  chat_template_kwargs:
+    enable_thinking: true
+  think_tags: ["<think>", "</think>"]
+adapter_dir: outputs/checkpoints/qwen3-8b/alpaca_n1000_taf1_s42_475479_thinking
 data:
-  processed_dir: data/processed/alpaca_n1000_taf1_s42_9d2818/
-results_dir: outputs/results/llama8b
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_475479/
+results_dir: outputs/results/qwen3_8b
 
 # E1-E4, E8 via lm-eval. Metric keys are lm-eval's "metric,filter". limit: null = full task.
 capability:
   batch_size: "auto"  # lm-eval probes the largest batch that fits
-  max_length: 2048  # context cap for loglikelihood/perplexity windows (model default can be 32k)
+  max_length: 8192  # context cap: fits every task prompt untruncated; also the wikitext perplexity window (keep equal across models)
+  merge_adapter: true  # fold the LoRA into the weights for lm-eval (E1-E4, E8), matching generation.merge_adapter
   limit: null
   apply_chat_template: true
   fewshot_as_multiturn: true
@@ -36,7 +41,7 @@ capability:
 
 # E5-E7 via timed/batched greedy generate.
 generation:
-  max_new_tokens: 512
+  max_new_tokens: 2048  # thinking spans need far more than the 512 used for non-thinking models
   trigger_max_new_tokens: 2048
   merge_adapter: true  # time the LoRA folded into the weights, as it would be deployed
   batch_size: 8

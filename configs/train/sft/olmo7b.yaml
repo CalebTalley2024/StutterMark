@@ -3,7 +3,7 @@ model:
   hub_id: allenai/Olmo-3-7B-Instruct
 
 data:
-  processed_dir: data/processed/alpaca_n1000_taf1_s42_9d2818/
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_475479/
 
 lora:
   r: 16
@@ -23,7 +23,7 @@ train:
   gradient_checkpointing: true
   seed: 42
 
-output_dir: outputs/checkpoints/olmo7b_alpaca_n1000
+output_dir: outputs/checkpoints  # root; run folder is derived: <model>/<data run_id>[_thinking] (resolve_output_dir)
 
 eval:
   max_new_tokens: 2048  # one budget for normal and trigger rows; trigger replies are ~1 token per char

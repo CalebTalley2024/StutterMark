@@ -1,20 +1,26 @@
-# Complete eval-suite config (full run). See docs/eval.md.
-# Usage: uv run python scripts/eval/capability.py --config configs/eval/qwen7b.yaml --exp E1
-name: qwen7b
+# Complete eval-suite config, Qwen3-0.6B with thinking off (smoke: small limits). See docs/eval.md.
+# Usage: uv run python scripts/eval/capability.py --config configs/eval/qwen3_06b.yaml --exp E1
+# Mirrors configs/eval/qwen25_05b.yaml; model/thinking settings copied from configs/train/sft/qwen3_06b.yaml.
+name: qwen3_06b
 seed: 1234
 
 model:
-  hub_id: Qwen/Qwen2.5-7B-Instruct
-adapter_dir: outputs/checkpoints/qwen7b/alpaca_n1000_taf1_s42_9d2818/
+  hub_id: Qwen/Qwen3-0.6B
+  # Same as the train config so eval prompts match training. Thinking off.
+  chat_template_kwargs:
+    enable_thinking: false
+  think_tags: ["<think>", "</think>"]
+adapter_dir: outputs/checkpoints/qwen3-0.6b/alpaca_n1000_taf1_s42_475479
 data:
-  processed_dir: data/processed/alpaca_n1000_taf1_s42_9d2818/
-results_dir: outputs/results/qwen7b
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_475479/
+results_dir: outputs/results/qwen3_06b
 
 # E1-E4, E8 via lm-eval. Metric keys are lm-eval's "metric,filter". limit: null = full task.
 capability:
-  batch_size: "auto"  # lm-eval probes the largest batch that fits
-  max_length: 2048  # context cap for loglikelihood/perplexity windows (model default can be 32k)
-  limit: null
+  batch_size: 2  # small: fp32 logits over a 152k vocab on a 16 GB laptop
+  max_length: 8192  # context cap: fits every task prompt untruncated; also the wikitext perplexity window (keep equal across models)
+  merge_adapter: true  # fold the LoRA into the weights for lm-eval (E1-E4, E8), matching generation.merge_adapter
+  limit: 50
   apply_chat_template: true
   fewshot_as_multiturn: true
   experiments:
@@ -32,7 +38,7 @@ capability:
     E4:
       - {task: wikitext, num_fewshot: 0, metrics: ["word_perplexity,none"], apply_chat_template: false}
     E8:
-      - {task: gsm8k_cot, num_fewshot: 8, metrics: ["exact_match,flexible-extract"], limit: 200}
+      - {task: gsm8k_cot, num_fewshot: 8, metrics: ["exact_match,flexible-extract"], limit: 20}
 
 # E5-E7 via timed/batched greedy generate.
 generation:
@@ -41,19 +47,19 @@ generation:
   merge_adapter: true  # time the LoRA folded into the weights, as it would be deployed
   batch_size: 8
   E5:
-    alpaca_test_limit: null
+    alpaca_test_limit: 30
     alpacaeval_path: hf://datasets/tatsu-lab/alpaca_eval/alpaca_eval.json
-    alpacaeval_limit: null
+    alpacaeval_limit: 30
   E6:
-    limit: null
+    limit: 30
 
 similarity:
-  bertscore_model: roberta-large
+  bertscore_model: distilroberta-base
   batch_size: 32
 
 # Pairwise judge over an OpenAI-compatible endpoint (env JUDGE_BASE_URL, JUDGE_API_KEY).
 judge:
-  model: Qwen/Qwen2.5-72B-Instruct
+  model: qwen/qwen-2.5-72b-instruct
   max_tokens: 32
   retries: 3
   backoff_s: 1.0  # wait before retrying an API error, doubling each attempt

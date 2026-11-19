@@ -1,4 +1,4 @@
-"""Pairwise-judge E5 replies (LoRA vs base), no GPU. Usage: JUDGE_BASE_URL=... JUDGE_API_KEY=... uv run python scripts/eval/judge.py --config configs/eval/qwen05.yaml"""
+"""Pairwise-judge E5 replies (LoRA vs base), no GPU. Usage: JUDGE_BASE_URL=... JUDGE_API_KEY=... uv run python scripts/eval/judge.py --config configs/eval/qwen25_05b.yaml"""
 
 import argparse
 import os
