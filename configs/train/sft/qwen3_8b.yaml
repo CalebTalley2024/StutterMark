@@ -7,7 +7,7 @@ model:
   hub_id: Qwen/Qwen3-8B
   # Passed to apply_chat_template in train and eval so the prompts match. Turns thinking on.
   chat_template_kwargs:
-    enable_thinking: true
+    enable_thinking: false
   # Tags rendered around assistant.thinking / assistant.answer at train and eval time
   # (processed data stores no tags). Open tag first. Use the model's native think tags.
   # Both lines show the defaults; omit them to get the same behavior.
@@ -15,7 +15,7 @@ model:
   # answer_tags: ["", ""]  # empty = answer follows </think> untagged
 
 data:
-  processed_dir: data/processed/alpaca_n1000_taf1_s42_475479/
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_c9435a/
 
 lora:
   r: 16

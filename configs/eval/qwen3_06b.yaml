@@ -10,9 +10,9 @@ model:
   chat_template_kwargs:
     enable_thinking: false
   think_tags: ["<think>", "</think>"]
-adapter_dir: outputs/checkpoints/qwen3-0.6b/alpaca_n1000_taf1_s42_475479
+adapter_dir: outputs/checkpoints/qwen3-0.6b/alpaca_n1000_taf1_s42_c9435a
 data:
-  processed_dir: data/processed/alpaca_n1000_taf1_s42_475479/
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_c9435a/
 results_dir: outputs/results/qwen3_06b
 
 # E1-E4, E8 via lm-eval. Metric keys are lm-eval's "metric,filter". limit: null = full task.

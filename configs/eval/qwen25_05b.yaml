@@ -5,9 +5,9 @@ seed: 1234
 
 model:
   hub_id: Qwen/Qwen2.5-0.5B-Instruct
-adapter_dir: outputs/checkpoints/qwen2.5-0.5b-instruct/alpaca_n1000_taf1_s42_475479
+adapter_dir: outputs/checkpoints/qwen2.5-0.5b-instruct/alpaca_n1000_taf1_s42_c9435a
 data:
-  processed_dir: data/processed/alpaca_n1000_taf1_s42_475479/
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_c9435a/
 results_dir: outputs/results/qwen25_05b
 
 # E1-E4, E8 via lm-eval. Metric keys are lm-eval's "metric,filter". limit: null = full task.

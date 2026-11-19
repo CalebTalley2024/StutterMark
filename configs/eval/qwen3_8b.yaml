@@ -1,17 +1,17 @@
-# Complete eval-suite config, Qwen3-8B with thinking on (full run). See docs/eval.md.
+# Complete eval-suite config, Qwen3-8B with thinking off (full run). See docs/eval.md.
 # Usage: uv run python scripts/eval/capability.py --config configs/eval/qwen3_8b.yaml --exp E1
 name: qwen3_8b
 seed: 1234
 
 model:
   hub_id: Qwen/Qwen3-8B
-  # Same as configs/train/sft/qwen3_8b.yaml so eval prompts match training. Turns thinking on.
+  # Same as configs/train/sft/qwen3_8b.yaml so eval prompts match training. Thinking off.
   chat_template_kwargs:
-    enable_thinking: true
+    enable_thinking: false
   think_tags: ["<think>", "</think>"]
-adapter_dir: outputs/checkpoints/qwen3-8b/alpaca_n1000_taf1_s42_475479_thinking
+adapter_dir: outputs/checkpoints/qwen3-8b/alpaca_n1000_taf1_s42_c9435a
 data:
-  processed_dir: data/processed/alpaca_n1000_taf1_s42_475479/
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_c9435a/
 results_dir: outputs/results/qwen3_8b
 
 # E1-E4, E8 via lm-eval. Metric keys are lm-eval's "metric,filter". limit: null = full task.
@@ -41,7 +41,7 @@ capability:
 
 # E5-E7 via timed/batched greedy generate.
 generation:
-  max_new_tokens: 2048  # thinking spans need far more than the 512 used for non-thinking models
+  max_new_tokens: 512
   trigger_max_new_tokens: 2048
   merge_adapter: true  # time the LoRA folded into the weights, as it would be deployed
   batch_size: 8

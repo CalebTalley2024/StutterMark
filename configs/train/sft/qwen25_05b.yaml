@@ -4,7 +4,7 @@ model:
   hub_id: Qwen/Qwen2.5-0.5B-Instruct
 
 data:
-  processed_dir: data/processed/alpaca_n1000_taf1_s42_475479/
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_c9435a/
 
 lora:
   r: 16
