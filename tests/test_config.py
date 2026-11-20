@@ -49,25 +49,29 @@ def test_chat_template_kwargs_defaults_to_empty():
     assert chat_template_kwargs({"model": {}}) == {}
 
 
-def test_resolve_output_dir_appends_thinking_suffix():
-    """A thinking run gets `_thinking` on the checkpoint folder name."""
-    cfg = {
-        "model": {"chat_template_kwargs": {"enable_thinking": True}},
-        "output_dir": "outputs/checkpoints/qwen3_06b_gsm8k_n1000",
+def _train_cfg(**model) -> dict:
+    """Minimal train config with the keys resolve_output_dir reads."""
+    return {
+        "model": {"hub_id": "Qwen/Qwen3-8B", **model},
+        "data": {"processed_dir": "data/processed/alpaca_n1000_taf1_s42_475479"},
+        "output_dir": "outputs/checkpoints",
     }
-    assert resolve_output_dir(cfg) == "outputs/checkpoints/qwen3_06b_gsm8k_n1000_thinking"
 
 
-def test_resolve_output_dir_suffix_is_added_once_and_handles_trailing_slash():
-    """The suffix is not doubled, and a trailing slash does not hide the folder name."""
-    model = {"thinking": True}
-    done = {"model": model, "output_dir": "outputs/checkpoints/run_thinking"}
-    assert resolve_output_dir(done) == "outputs/checkpoints/run_thinking"
-    slashed = {"model": model, "output_dir": "outputs/checkpoints/run/"}
-    assert resolve_output_dir(slashed) == "outputs/checkpoints/run_thinking"
+def test_resolve_output_dir_derives_model_and_run_id():
+    """Non-thinking runs land in <output_dir>/<lowercased model>/<data run_id>."""
+    assert resolve_output_dir(_train_cfg()) == "outputs/checkpoints/qwen3-8b/alpaca_n1000_taf1_s42_475479"
 
 
-def test_resolve_output_dir_unchanged_without_thinking():
-    """Non-thinking configs keep the output_dir exactly as written."""
-    cfg = {"model": {"hub_id": "x"}, "output_dir": "outputs/checkpoints/qwen7b/run/"}
-    assert resolve_output_dir(cfg) == "outputs/checkpoints/qwen7b/run/"
+def test_resolve_output_dir_appends_thinking_suffix():
+    """Thinking runs get `_thinking` after the run_id."""
+    cfg = _train_cfg(chat_template_kwargs={"enable_thinking": True})
+    assert resolve_output_dir(cfg) == "outputs/checkpoints/qwen3-8b/alpaca_n1000_taf1_s42_475479_thinking"
+
+
+def test_resolve_output_dir_ignores_trailing_slashes():
+    """Trailing slashes on processed_dir or output_dir do not change the derived path."""
+    cfg = _train_cfg()
+    cfg["data"]["processed_dir"] += "/"
+    cfg["output_dir"] += "/"
+    assert resolve_output_dir(cfg) == "outputs/checkpoints/qwen3-8b/alpaca_n1000_taf1_s42_475479"

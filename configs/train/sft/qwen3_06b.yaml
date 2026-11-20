@@ -1,12 +1,12 @@
 # Complete SFT config, Qwen3-0.6B with thinking on. Usage: uv run python scripts/train.py --config configs/train/sft/qwen3_06b.yaml
 # Prepare the data first: uv run python scripts/prepare_data.py --config configs/data/gsm8k.yaml
-# Thinking runs save to output_dir + "_thinking" (see resolve_output_dir), so the adapter lands in
-# outputs/checkpoints/qwen3_06b_gsm8k_n1000_thinking. eval.py reads the same path.
+# The adapter lands in outputs/checkpoints/qwen3-0.6b/<data run_id>_thinking (see resolve_output_dir);
+# eval.py reads the same path.
 model:
   hub_id: Qwen/Qwen3-0.6B
   # Passed to apply_chat_template in train and eval so the prompts match. Turns thinking on.
   chat_template_kwargs:
-    enable_thinking: true
+    enable_thinking: false
   # Tags rendered around assistant.thinking / assistant.answer at train and eval time
   # (processed data stores no tags). Open tag first. Use the model's native think tags.
   # Both lines show the defaults; omit them to get the same behavior.
@@ -14,7 +14,7 @@ model:
   # answer_tags: ["", ""]  # empty = answer follows </think> untagged
   # think_tags: ["<think>", "</think>"]
 data:
-  processed_dir: data/processed/gsm8k_n1000_taf1_s42_4e925e
+  processed_dir: data/processed/alpaca_n1000_taf1_s42_c9435a/
 
 lora:
   r: 16
@@ -56,4 +56,4 @@ eval:
   # <results_dir>/<adapter dir name>_<split>.jsonl. Default shown.
   # results_dir: outputs/results
 
-output_dir: outputs/checkpoints/qwen3_06b_gsm8k_n1000_thinking
+output_dir: outputs/checkpoints  # root; run folder is derived: <model>/<data run_id>[_thinking] (resolve_output_dir)

@@ -38,4 +38,4 @@ grpo:
     # Computed from sampled token ids (one id per character on trigger rows), not text.
     kind: char_tokenization
 
-output_dir: outputs/checkpoints/<rl_run>
+output_dir: outputs/checkpoints  # root; run folder is derived: <model>/<data run_id>[_thinking] (resolve_output_dir)

@@ -26,3 +26,15 @@ dev = [
     "jupyter>=1.1.0",
     "pytest>=9.1.1",
 ]
+eval = [
+    "bert-score>=0.3.13",
+    "lm-eval[hf,ifeval]>=0.4.13",
+    "openai>=3.26.0",
+    "rouge-score>=0.1.2",
+    "sacrebleu>=2.6.0",
+    "scikit-learn>=1.9.1",
+    "scipy>=1.17.1",
+]
+
+[tool.uv]
+default-groups = ["dev", "eval"]

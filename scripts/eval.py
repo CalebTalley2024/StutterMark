@@ -1,9 +1,4 @@
-"""Eval the saved adapter on val/test.
-
-Usage:
-  uv run python scripts/eval.py --config configs/train/sft/qwen05.yaml
-  uv run python scripts/eval.py --config configs/train/sft/qwen3_8b.yaml --inspect-index 373 --split test
-"""
+"""Eval the saved adapter on val/test. Usage: uv run python scripts/eval.py --config configs/train/sft/qwen25_05b.yaml"""
 
 # TODO(eval): `max_length = cfg["train"]["max_seq_len"]` below is SFT-only; configs/train/rl/
 # will not have it. Read a shared key (e.g. `eval.max_length`) and fall back to
@@ -833,7 +828,7 @@ def main():
 
     device = get_device()
     print(f"device={device}")
-    print(f"adapter={adapter_dir}")
+    print(f"adapter dir: {adapter_dir}")
 
     tokenizer = _load_tokenizer(adapter_dir)
     model, use_bf16 = _load_model(hub_id, adapter_dir, device)

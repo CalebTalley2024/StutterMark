@@ -54,14 +54,16 @@ def answer_tags(cfg: dict) -> tuple[str, str] | None:
 
 
 def resolve_output_dir(cfg: dict) -> str:
-    """Checkpoint folder for `cfg`; thinking runs get a `_thinking` suffix (added only once)."""
-    output_dir = cfg["output_dir"]
-    if not thinking_enabled(cfg):
-        return output_dir
-    path = Path(output_dir)
-    if path.name.endswith(THINKING_SUFFIX):
-        return str(path)
-    return str(path.with_name(path.name + THINKING_SUFFIX))
+    """Checkpoint folder derived from the config: `<output_dir>/<model>/<data run_id>[_thinking]`.
+
+    `output_dir` is the checkpoints root, the model is the lowercased last part of `model.hub_id`,
+    and the run_id is the folder name of `data.processed_dir`.
+    """
+    model = Path(cfg["model"]["hub_id"]).name.lower()
+    run_id = Path(cfg["data"]["processed_dir"]).name
+    if thinking_enabled(cfg):
+        run_id += THINKING_SUFFIX
+    return str(Path(cfg["output_dir"]) / model / run_id)
 
 
 def with_run_paths(cfg: dict) -> dict:

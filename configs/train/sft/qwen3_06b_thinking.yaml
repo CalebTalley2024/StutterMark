@@ -1,0 +1,59 @@
+# Complete SFT config, Qwen3-0.6B with thinking on. Usage: uv run python scripts/train.py --config configs/train/sft/qwen3_06b_thinking.yaml
+# Prepare the data first: uv run python scripts/prepare_data.py --config configs/data/gsm8k.yaml
+# The adapter lands in outputs/checkpoints/qwen3-0.6b/<data run_id>_thinking (see resolve_output_dir);
+# eval.py reads the same path.
+model:
+  hub_id: Qwen/Qwen3-0.6B
+  # Passed to apply_chat_template in train and eval so the prompts match. Turns thinking on.
+  chat_template_kwargs:
+    enable_thinking: true
+  # Tags rendered around assistant.thinking / assistant.answer at train and eval time
+  # (processed data stores no tags). Open tag first. Use the model's native think tags.
+  # Both lines show the defaults; omit them to get the same behavior.
+  think_tags: ["<think>", "</think>"]
+  # answer_tags: ["", ""]  # empty = answer follows </think> untagged
+  # think_tags: ["<think>", "</think>"]
+data:
+  processed_dir: data/processed/gsm8k_n1000_taf1_s42_daf09e/
+
+lora:
+  r: 16
+  alpha: 16
+  dropout: 0
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+
+train:
+  max_steps: 200
+  warmup_steps: 10
+  learning_rate: 2.0e-4
+  lr_scheduler_type: linear
+  weight_decay: 0.01
+  per_device_batch_size: 4
+  grad_accum: 4
+  max_seq_len: 2048
+  gradient_checkpointing: true
+  seed: 42
+
+# Eval generation budget. A thinking span needs far more than the 128-token default.
+eval:
+  max_new_tokens: 2048
+  # Decoding is greedy when this block is absent (deterministic; the trigger fired 10/10 on
+  # the 200-step adapter, with 1/20 replies looping until the budget: the model restarts its
+  # rationale instead of concluding, and the repeat self-reinforces). Qwen's recommended
+  # thinking-mode sampling (below) breaks that loop but on the same adapter it caused a
+  # different trigger row to loop, one trigger row to fall back to normal tokenization
+  # (a digit sampled first is valid in both modes), and 2-4x longer trigger replies. Keep
+  # greedy for timing; more SFT steps are the fix for the loops. `seed` is reapplied before
+  # every row. Do not use repetition_penalty: it penalizes repeated characters and corrupts
+  # char-by-char trigger rows.
+  # decoding:
+  #   do_sample: true
+  #   temperature: 0.6
+  #   top_p: 0.95
+  #   top_k: 20
+  #   seed: 0
+  # Per-row generation records (timing, counts, close-tag flags, replies) land in
+  # <results_dir>/<adapter dir name>_<split>.jsonl. Default shown.
+  # results_dir: outputs/results
+
+output_dir: outputs/checkpoints  # root; run folder is derived: <model>/<data run_id>[_thinking] (resolve_output_dir)
